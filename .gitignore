@@ -1,1 +1,6 @@
 papers/
+ra117801/codigo/*.o
+ra117801/codigo/relaxlag
+*.swp
+*.swo
+
