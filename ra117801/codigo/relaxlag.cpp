@@ -113,8 +113,13 @@ double kruskal (vector <Edge> * A, unsigned int n, vector <Edge> E) {
     return result;
 }
 
-bool readParameters (unsigned int k) {
-    /* TODO: read parameters */
+bool readParameters (unsigned int k, unsigned int * timeLimit) {
+    ifstream parameterFileStream(k == 1 ? "param1" : "param2", ifstream::in);
+    if (!parameterFileStream.is_open()) {
+        return false;
+    }
+    /* Time limit in seconds */
+    parameterFileStream >> (*timeLimit);
     return true;
 }
 
@@ -226,7 +231,9 @@ int main (int argc, char * argv[]) {
         return 1;
     }
 
-    if (!readParameters(k)) {
+    unsigned int timeLimit;
+
+    if (!readParameters(k, &timeLimit)) {
         cerr << "Error while reading parameters!" << endl;
         return 1;
     }
