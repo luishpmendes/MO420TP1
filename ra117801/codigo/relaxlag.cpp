@@ -160,6 +160,11 @@ bool readInput (unsigned int * n, vector <Edge> * E, vector <ConflictingPair> * 
     return true;
 }
 
+vector <double> initialLagrangeMultipliers (int m) {
+    vector <double> result (m, 1.0);
+    return result;
+}
+
 bool relaxLag1 (double * bestDualBoundValue, int * bestDualBoundIteration, int * totalIterations, 
         double * bestPrimalBoundValue, int * bestPrimalBoundIteration, 
         vector <Edge> * bestPrimalSolution, unsigned int n, vector <Edge> E, 
