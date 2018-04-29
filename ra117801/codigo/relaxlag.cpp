@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <chrono>
 #include <cstdlib>
 #include <fstream>
 #include <iomanip>
@@ -170,18 +171,32 @@ vector <double> initialLagrangeMultipliers (int m) {
     return result;
 }
 
+bool termination (chrono::high_resolution_clock::time_point tBegin, unsigned int timeLimit) {
+    chrono::high_resolution_clock::time_point tCurrent = chrono::high_resolution_clock::now();
+    chrono::seconds elapsedTime = chrono::duration_cast <chrono::seconds> (tCurrent - tBegin);
+    if ((unsigned int) elapsedTime.count() >= timeLimit) {
+        return true;
+    }
+    return false;
+}
+
 bool relaxLag1 (double * bestDualBoundValue, int * bestDualBoundIteration, int * totalIterations, 
         double * bestPrimalBoundValue, int * bestPrimalBoundIteration, 
         vector <Edge> * bestPrimalSolution, unsigned int n, vector <Edge> E, 
-        vector <ConflictingPair> S) {
+        vector <ConflictingPair> S, chrono::high_resolution_clock::time_point tBegin, 
+        unsigned int timeLimit) {
     /* TODO */
+    vector <double> u = initialLagrangeMultipliers(S.size());
+    while (!termination(tBegin, timeLimit)) {
+    }
     return true;
 }
 
 bool relaxLag2 (double * bestDualBoundValue, int * bestDualBoundIteration, int * totalIterations, 
         double * bestPrimalBoundValue, int * bestPrimalBoundIteration, 
         vector <Edge> * bestPrimalSolution, unsigned int n, vector <Edge> E, 
-        vector <ConflictingPair> S) {
+        vector <ConflictingPair> S, chrono :: high_resolution_clock :: time_point tBegin, 
+        unsigned int timeLimit) {
     /* TODO */
     return true;
 }
@@ -221,6 +236,7 @@ bool writeResult (char * resultFilePath, double bestDualBoundValue, int bestDual
 }
 
 int main (int argc, char * argv[]) {
+    chrono::high_resolution_clock::time_point tBegin = chrono::high_resolution_clock::now();
     if (argc != 4) {
         cerr << "Invalid arguments!" << endl;
         return 1;
@@ -253,14 +269,14 @@ int main (int argc, char * argv[]) {
     if (k == 1) {
         if (!relaxLag1(&bestDualBoundValue, &bestDualBoundIteration, &totalIterations, 
                     &bestPrimalBoundValue, &bestPrimalBoundIteration, &bestPrimalSolution, 
-                    n, E, S)) {
+                    n, E, S, tBegin, timeLimit)) {
             cerr << "Error while executing first Lagrangian Relaxation!" << endl;
             return 1;
         }
     } else {
         if (!relaxLag2(&bestDualBoundValue, &bestDualBoundIteration, &totalIterations, 
                     &bestPrimalBoundValue, &bestPrimalBoundIteration, &bestPrimalSolution, 
-                    n, E, S)) {
+                    n, E, S, tBegin, timeLimit)) {
             cerr << "Error while executing second Lagrangian Relaxation!" << endl;
             return 1;
         }

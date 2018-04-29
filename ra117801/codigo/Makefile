@@ -1,5 +1,5 @@
 CPPC=g++
-CFLAGS=-Wall -Werror -g -O0 -fno-inline
+CFLAGS=-Wall -Werror -g -O0 -fno-inline -std=c++11
 DEPS = relaxlag.cpp
 OBJ = relaxlag.o
 
