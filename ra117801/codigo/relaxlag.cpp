@@ -114,6 +114,35 @@ double kruskal (vector <Edge> * A, unsigned int n, vector <Edge> E) {
     return result;
 }
 
+Sets connectedComponents (unsigned int n, vector <Edge> E) {
+    Sets S;
+
+    SETSinit(&S, n);
+
+    /* For each vertex v ∈ V */
+    for (unsigned int v = 0; v < n; v++) {
+        SETSmake(&S, v);
+    }
+
+    /* For each edge (u, v) ∈ E */
+    for (vector <Edge>::iterator it = E.begin(); it != E.end(); it++) {
+        Edge e = (*it);
+        if (SETSfind(&S, e.u) != SETSfind(&S, e.v)) {
+            SETSunion(&S, e.u, e.v);
+        }
+    }
+
+    return S;
+}
+
+bool sameComponent (Sets S, unsigned int u, unsigned int v) {
+    if (SETSfind(&S, u) == SETSfind(&S, v)) {
+        return true;
+    }
+
+    return false;
+}
+
 bool readParameters (unsigned int k, unsigned int * timeLimit) {
     ifstream parameterFileStream(k == 1 ? "param1" : "param2", ifstream::in);
     if (!parameterFileStream.is_open()) {
