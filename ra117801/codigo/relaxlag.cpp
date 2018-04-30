@@ -180,15 +180,75 @@ bool termination (chrono::high_resolution_clock::time_point tBegin, unsigned int
     return false;
 }
 
+double fixSolution (vector <Edge> * primalSolution, unsigned int n, vector <Edge> E, 
+        vector <ConflictingPair> S) {
+    /* TODO */
+    return 0;
+}
+
 bool relaxLag1 (double * bestDualBoundValue, int * bestDualBoundIteration, int * totalIterations, 
         double * bestPrimalBoundValue, int * bestPrimalBoundIteration, 
         vector <Edge> * bestPrimalSolution, unsigned int n, vector <Edge> E, 
         vector <ConflictingPair> S, chrono::high_resolution_clock::time_point tBegin, 
         unsigned int timeLimit) {
-    /* TODO */
+    (*bestDualBoundValue) = -INFINITE;
+    (*bestDualBoundIteration) = 0;
+    (*totalIterations) = 0;
+    (*bestPrimalBoundValue) = INFINITE;
+    (*bestPrimalBoundIteration) = -1;
     vector <double> u = initialLagrangeMultipliers(S.size());
     while (!termination(tBegin, timeLimit)) {
+        double dualBoundValue, primalBoundValue, stepSize;
+        vector <Edge> Eu(E), dualSolution, primalSolution;
+        vector <double> G(S.size(), -1.0);
+        (*totalIterations)++;
+        /* Solving the Lagrangian problem with the current set of multipliers */
+        for (unsigned int i = 0; i < S.size(); i++) {
+            for (vector <Edge>::iterator it = Eu.begin(); it != Eu.end(); it++) {
+                if ((it->u == S[i].e.u && it->v == S[i].e.u) || 
+                        (it->u == S[i].f.u && it->v == S[i].f.v)) {
+                    it->w += u[i];
+                }
+            }
+        }
+        dualBoundValue = kruskal(&dualSolution, n, Eu);
+        for (vector <double>::iterator it = u.begin(); it != u.end(); it++) {
+            dualBoundValue -= (*it);
+        }
+        if ((*bestDualBoundValue) < dualBoundValue) {
+            (*bestDualBoundValue) = dualBoundValue;
+            (*bestDualBoundIteration) = (*totalIterations);
+        }
+        /* Defining subgradients for the relaxed constraints, evaluated at the current solution */
+        for (unsigned int i = 0; i < S.size(); i++) {
+            for (vector <Edge>::iterator it = dualSolution.begin(); it != dualSolution.end(); 
+                    it++) {
+                if ((it->u == S[i].e.u && it->v == S[i].e.v) || 
+                        (it->u == S[i].f.u && it->v == S[i].f.v)) {
+                    G[i] += 1.0;
+                }
+            }
+        }
+        /* Obtaining a feasible primal solution from a (possibly unfeasible) dual solution */
+        primalSolution = vector <Edge> (dualSolution);
+        primalBoundValue = fixSolution(&primalSolution, n, E, S);
+        if ((*bestPrimalBoundValue) > primalBoundValue) {
+            (*bestPrimalBoundValue) = primalBoundValue;
+            (*bestPrimalBoundIteration) = (*totalIterations);
+            (*bestPrimalSolution) = primalSolution;
+        }
+        /* Defining a step size */
+        stepSize = 0.0;
+        for (vector <double>::iterator it = G.begin(); it != G.end(); it++) {
+            stepSize += (*it) * (*it);
+        }
+        stepSize = ((*bestPrimalBoundValue) - dualBoundValue) / stepSize;
+        /* Updating Lagrange multipliers */
+        for (unsigned int i = 0; i < u.size(); i++) {
+            u[i] = max(0.0, u[i] + stepSize * G[i]);
+        }
     }
+    (*totalIterations)++;
     return true;
 }
 
