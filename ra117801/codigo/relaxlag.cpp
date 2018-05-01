@@ -209,6 +209,35 @@ bool termination (chrono::high_resolution_clock::time_point tBegin, unsigned int
     return false;
 }
 
+bool isFeasible (unsigned int n, vector <ConflictingPair> S, vector <Edge> solution) {
+    if (solution.size() != n - 1) {
+        return false;
+    }
+    Sets components = connectedComponents(n, solution);
+    for (unsigned int u = 0; u < n; u++) {
+        for (unsigned int v = u + 1; v < n; v++) {
+            if (!sameComponent(components, u, v)) {
+                SETSdestroy(&components);
+                return false;
+            }
+        }
+    }
+    SETSdestroy(&components);
+    for (vector <ConflictingPair>::iterator it = S.begin(); it != S.end(); it++) {
+        unsigned int counter = 0;
+        for (vector <Edge>::iterator it2 = solution.begin(); it2 != solution.end(); it2++) {
+            if ((it->e.u == it2->u && it->e.v == it2->v) || 
+                    (it->f.u == it2->u && it->f.v == it2->v)) {
+                counter++;
+            }
+            if (counter >= 2) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
 double fixSolution (vector <Edge> * primalSolution, unsigned int n, vector <Edge> E, 
         vector <ConflictingPair> S) {
     /* TODO */
