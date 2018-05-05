@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstdlib>
 #include <fstream>
 #include <iomanip>
@@ -12,6 +13,10 @@
 
 #ifndef NIL
 #define NIL - (15 << 25)
+#endif
+
+#ifndef EPSILON
+#define EPSILON 1.0e-3
 #endif
 
 using namespace std;
@@ -401,6 +406,9 @@ bool relaxLag1 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
                         (it->u == S[i].f.u && it->v == S[i].f.v)) {
                     G[i] += 1.0;
                 }
+            }
+            if (fabs(u[i]) < EPSILON && G[i] < 0.0) {
+                G[i] = 0.0;
             }
         }
         /* Obtaining a feasible primal solution from a (possibly unfeasible) dual solution */
