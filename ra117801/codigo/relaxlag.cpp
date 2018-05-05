@@ -352,6 +352,7 @@ bool relaxLag1 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
     (*bestPrimalBoundValue) = INFINITE;
     (*bestPrimalBoundIteration) = -1;
     vector <double> u = initialLagrangeMultipliers(S.size());
+    unsigned int iterationsWithoutImprovment = 0;
     while (!termination(tBegin, timeLimit, (*bestDualBoundValue), (*bestPrimalBoundValue))) {
         double dualBoundValue, primalBoundValue, stepSize;
         vector <Edge> Eu(E), dualSolution, primalSolution;
@@ -373,6 +374,16 @@ bool relaxLag1 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
         if ((*bestDualBoundValue) < dualBoundValue) {
             (*bestDualBoundValue) = dualBoundValue;
             (*bestDualBoundIteration) = (*totalIterations);
+            iterationsWithoutImprovment = 0;
+        } else {
+            iterationsWithoutImprovment++;
+        }
+        /* If bestDualBoundValue has not improved in the last N subgradient iterations */
+        /* with the current value of π */
+        if (iterationsWithoutImprovment >= N) {
+            /* then halve π */
+            pi /= 2.0;
+            iterationsWithoutImprovment = 0;
         }
         /* Defining subgradients for the relaxed constraints, evaluated at the current solution */
         for (unsigned int i = 0; i < S.size(); i++) {
