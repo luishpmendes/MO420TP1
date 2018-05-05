@@ -143,13 +143,15 @@ bool sameComponent (Sets S, unsigned int u, unsigned int v) {
     return false;
 }
 
-bool readParameters (unsigned int k, unsigned int * timeLimit) {
+bool readParameters (unsigned int k, unsigned int * timeLimit, double * pi) {
     ifstream parameterFileStream(k == 1 ? "param1" : "param2", ifstream::in);
     if (!parameterFileStream.is_open()) {
         return false;
     }
     /* Time limit in seconds */
     parameterFileStream >> (*timeLimit);
+    /* π */
+    parameterFileStream >> (*pi);
     return true;
 }
 
@@ -341,7 +343,7 @@ bool relaxLag1 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
         double * bestPrimalBoundValue, int * bestPrimalBoundIteration, 
         vector <Edge> * bestPrimalSolution, unsigned int n, vector <Edge> E, 
         vector <ConflictingPair> S, chrono::high_resolution_clock::time_point tBegin, 
-        unsigned int timeLimit) {
+        unsigned int timeLimit, double pi) {
     (*bestDualBoundValue) = -INFINITE;
     (*bestDualBoundIteration) = 0;
     (*totalIterations) = 0;
@@ -393,7 +395,7 @@ bool relaxLag1 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
         for (vector <double>::iterator it = G.begin(); it != G.end(); it++) {
             stepSize += (*it) * (*it);
         }
-        stepSize = ((*bestPrimalBoundValue) - dualBoundValue) / stepSize;
+        stepSize = (pi * ((*bestPrimalBoundValue) - dualBoundValue)) / stepSize;
         /* Updating Lagrange multipliers */
         for (unsigned int i = 0; i < u.size(); i++) {
             u[i] = max(0.0, u[i] + stepSize * G[i]);
@@ -407,7 +409,7 @@ bool relaxLag2 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
         double * bestPrimalBoundValue, int * bestPrimalBoundIteration, 
         vector <Edge> * bestPrimalSolution, unsigned int n, vector <Edge> E, 
         vector <ConflictingPair> S, chrono :: high_resolution_clock :: time_point tBegin, 
-        unsigned int timeLimit) {
+        unsigned int timeLimit, double pi) {
     /* TODO */
     return true;
 }
@@ -459,8 +461,9 @@ int main (int argc, char * argv[]) {
     }
 
     unsigned int timeLimit;
+    double pi;
 
-    if (!readParameters(k, &timeLimit)) {
+    if (!readParameters(k, &timeLimit, &pi)) {
         cerr << "Error while reading parameters!" << endl;
         return 1;
     }
@@ -480,14 +483,14 @@ int main (int argc, char * argv[]) {
     if (k == 1) {
         if (!relaxLag1(&bestDualBoundValue, &bestDualBoundIteration, &totalIterations, 
                     &bestPrimalBoundValue, &bestPrimalBoundIteration, &bestPrimalSolution, 
-                    n, E, S, tBegin, timeLimit)) {
+                    n, E, S, tBegin, timeLimit, pi)) {
             cerr << "Error while executing first Lagrangian Relaxation!" << endl;
             return 1;
         }
     } else {
         if (!relaxLag2(&bestDualBoundValue, &bestDualBoundIteration, &totalIterations, 
                     &bestPrimalBoundValue, &bestPrimalBoundIteration, &bestPrimalSolution, 
-                    n, E, S, tBegin, timeLimit)) {
+                    n, E, S, tBegin, timeLimit, pi)) {
             cerr << "Error while executing second Lagrangian Relaxation!" << endl;
             return 1;
         }
