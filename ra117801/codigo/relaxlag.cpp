@@ -200,10 +200,18 @@ vector <double> initialLagrangeMultipliers (int m) {
     return result;
 }
 
-bool termination (chrono::high_resolution_clock::time_point tBegin, unsigned int timeLimit) {
+bool termination (chrono::high_resolution_clock::time_point tBegin, unsigned int timeLimit, 
+        double bestDualBoundValue, double bestPrimalBoundValue) {
     chrono::high_resolution_clock::time_point tCurrent = chrono::high_resolution_clock::now();
     chrono::seconds elapsedTime = chrono::duration_cast <chrono::seconds> (tCurrent - tBegin);
     if ((unsigned int) elapsedTime.count() >= timeLimit) {
+        return true;
+    }
+    /* It is clear that the subgradient optimization procedure can be terminated if we find */
+    /* that bestPrimalBoundValue == bestDualBoundValue.  */
+    /* In this case the value of the maximum lower bound coincides with the value of a feasible */
+    /* solution and so it must be optimal */
+    if (bestDualBoundValue == bestPrimalBoundValue) {
         return true;
     }
     return false;
@@ -340,7 +348,7 @@ bool relaxLag1 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
     (*bestPrimalBoundValue) = INFINITE;
     (*bestPrimalBoundIteration) = -1;
     vector <double> u = initialLagrangeMultipliers(S.size());
-    while (!termination(tBegin, timeLimit)) {
+    while (!termination(tBegin, timeLimit, (*bestDualBoundValue), (*bestPrimalBoundValue))) {
         double dualBoundValue, primalBoundValue, stepSize;
         vector <Edge> Eu(E), dualSolution, primalSolution;
         vector <double> G(S.size(), -1.0);
