@@ -262,79 +262,86 @@ bool isFeasible (unsigned int n, vector <ConflictingPair> S, vector <Edge> solut
     return true;
 }
 
-double fixSolution (vector <Edge> * primalSolution, unsigned int n, vector <Edge> E, 
-        vector <ConflictingPair> S) {
-    double primalBoundValue = 0.0;
-    /* sort the edges of E into nondecreasing order by weight w */
-    sort(E.begin(), E.end(), comparator);
-    /* Fixing the weight of solution's edges */
-    for (vector <Edge>::iterator it = (*primalSolution).begin(); it != (*primalSolution).end(); 
-            it++) {
-        for (vector <Edge>::iterator it2 = E.begin(); it2 != E.end(); it2++) {
-            if (it->u == it2->u && it->v == it2->v) {
-                it->w = it2->w;
-            }
+void removeEdge (vector <Edge> * E, Edge e) {
+    unsigned int i;
+    for (i = 0; i < (*E).size(); i++) {
+        if ((*E)[i].u == e.u && (*E)[i].v == e.v) {
+            break;
         }
-        primalBoundValue += it->w;
     }
-    while (!isFeasible(n, S, (*primalSolution))) {
-        /* Choosing a conflicting edge to remove */
-        Edge edgeToRemove;
-        unsigned int solutionIndexToRemove, EIndexToRemove;
-        bool flag = false;
-        for (vector <ConflictingPair>::iterator it = S.begin(); it != S.end() && !flag; it++) {
-            unsigned int counter = 0;
-            for (vector <Edge>::iterator it2 = (*primalSolution).begin(); 
-                    it2 != (*primalSolution).end() && !flag; it2++) {
-                if (counter >= 2) {
-                    if (it->e.w > it->f.w) {
-                        edgeToRemove = it->e;
-                    } else {
-                        edgeToRemove = it->f;
-                    }
-                    flag = true;
-                } else if ((it->e.u == it2->u && it->e.v == it2->v) || 
-                        (it->f.u == it2->u && it->f.v == it2->v)){
+    (*E).erase((*E).begin() + i);
+}
+
+bool isBridge (unsigned int n, vector <Edge> E, Edge e) {
+    Sets components;
+    removeEdge (&E, e);
+    components = connectedComponents(n, E);
+    return !sameComponent(components, e.u, e.v);
+}
+
+unsigned int searchEdgeToRemove (unsigned int n, vector <Edge> E, vector <ConflictingPair> S, 
+        vector <bool> isInPrimalSolution, vector <bool> isRemoved, vector <bool> isRemovable) {
+    int result = E.size();
+    vector <Edge> EnotRemoved;
+    vector <unsigned int> conflictsCounter (E.size(), 0);
+    unsigned int maxConflicts = 0, maxWeight = 0;
+    for (unsigned int i = 0; i < E.size(); i++) {
+        if (!isRemoved[i]) {
+            EnotRemoved.push_back(E[i]);
+        }
+    }
+    for (vector <ConflictingPair>::iterator it = S.begin(); it != S.end(); it++) {
+        unsigned int counter = 0;
+        for (unsigned int i = 0; i < E.size(); i++) {
+            if (isInPrimalSolution[i]) {
+                if ((it->e.u == E[i].u && it->e.v == E[i].v) || 
+                        (it->f.u == E[i].u && it->f.v == E[i].v)) {
                     counter++;
+                }
+                if (counter >= 2) {
+                    conflictsCounter[i]++;
+                    break;
                 }
             }
         }
-        for (unsigned int i = 0; i < (*primalSolution).size(); i++) {
-            if ((*primalSolution)[i].u == edgeToRemove.u 
-                    && (*primalSolution)[i].v == edgeToRemove.v) {
-                solutionIndexToRemove = i;
-                break;
-            }
+    }
+    for (unsigned int i = 0; i < E.size(); i++) {
+        if (isInPrimalSolution[i] && isRemovable[i] && conflictsCounter[i] > 0 && 
+                (maxConflicts < conflictsCounter[i] || 
+                 (maxConflicts == conflictsCounter[i] && maxWeight < E[i].w)) && 
+                !isBridge(n, EnotRemoved, E[i])) {
+            maxConflicts = conflictsCounter[i];
+            maxWeight = E[i].w;
+            result = i;
         }
-        for (unsigned int i = 0; i < E.size(); i++) {
-            if (E[i].u == edgeToRemove.u && E[i].v == edgeToRemove.v) {
-                EIndexToRemove = i;
-                break;
-            }
+    }
+    return result;
+}
+
+unsigned int searchEdgeToInsert (unsigned int n, vector <Edge> E, vector <ConflictingPair> S, 
+        vector <bool> isInPrimalSolution, vector <bool> isRemoved) {
+    unsigned int result = E.size();
+    vector <Edge> primalSolution;
+    Sets components;
+    for (unsigned int i = 0; i < E.size(); i++) {
+        if (isInPrimalSolution[i]) {
+            primalSolution.push_back(E[i]);
         }
-        /* Removing conflicting edge from solution */
-        (*primalSolution).erase((*primalSolution).begin() + solutionIndexToRemove);
-        /* Updating solution value */
-        primalBoundValue -= edgeToRemove.w;
-        /* Removing conflicting edge from graph */
-        E.erase(E.begin() + EIndexToRemove);
-        /* Choosing a non-conflicting edge that re-connects the solution */
-        Edge edgeToInsert;
-        Sets components = connectedComponents(n, (*primalSolution));
-        bool foundEdge = false;
-        /* for each edge (u, v) ∈ E, taken in nondecreasing order by weight */
-        for (vector <Edge>::iterator it = E.begin(); it != E.end() && !foundEdge; it++) {
-            edgeToInsert = (*it);
+    }
+    components = connectedComponents(n, primalSolution);
+    /* for each edge (u, v) ∈ E, taken in nondecreasing order by weight */
+    for (unsigned int i = 0; i < E.size(); i++) {
+        if (!isRemoved[i]) {
             /* Checking if the edge connects the solution */
-            if (!sameComponent(components, edgeToInsert.u, edgeToInsert.v)) {
+            if (!sameComponent(components, E[i].u, E[i].v)) {
                 /* Checking if the edge conflicts if another edge in solution */
                 bool conflict = false;
-                for (vector <ConflictingPair>::iterator it = S.begin(); it != S.end() && 
-                        !conflict; it++) {
-                    if ((it->e.u == edgeToInsert.u && it->e.v == edgeToInsert.v) || 
-                            (it->f.u == edgeToInsert.u && it->f.v == edgeToInsert.v)) {
-                        for (vector <Edge>::iterator it2 = (*primalSolution).begin(); 
-                                it2 != (*primalSolution).end(); it2++) {
+                for (vector <ConflictingPair>::iterator it = S.begin(); 
+                        it != S.end() && !conflict; it++) {
+                    if ((it->e.u == E[i].u && it->e.v == E[i].v) || 
+                            (it->f.u == E[i].u && it->f.v == E[i].v)) {
+                        for (vector <Edge>::iterator it2 = primalSolution.begin(); 
+                                it2 != primalSolution.end(); it2++) {
                             if ((it->e.u == it2->u && it->e.v == it2->v) || 
                                     (it->f.u == it2->u && it->f.v == it2->v)) {
                                 conflict = true;
@@ -342,13 +349,81 @@ double fixSolution (vector <Edge> * primalSolution, unsigned int n, vector <Edge
                         }
                     }
                 }
-                foundEdge = !conflict;
+                if (!conflict) {
+                    result = i;
+                    break;
+                }
             }
         }
-        /* Adding edge to solution */
-        (*primalSolution).push_back(edgeToInsert);
-        /* Updating solution value */
-        primalBoundValue += edgeToInsert.w;
+    }
+    return result;
+}
+
+double fixSolution (vector <Edge> * primalSolution, unsigned int n, vector <Edge> E, 
+        vector <ConflictingPair> S) {
+    double primalBoundValue = 0.0;
+    bool flag = false;
+    vector <bool> isInPrimalSolution (E.size(), false), isRemoved (E.size(), false), 
+           isRemovable (E.size(), true);
+    /* Fixing the weight of solution's edges */
+    for (unsigned int i = 0; i < E.size(); i++) {
+        for (vector <Edge>::iterator it = (*primalSolution).begin(); 
+                it != (*primalSolution).end(); it++) {
+            if (E[i].u == it->u && E[i].v == it->v) {
+                it->w = E[i].w;
+                primalBoundValue += E[i].w;
+            }
+        }
+        isRemovable[i] = !isBridge(n, E, E[i]);
+    }
+    while (!isFeasible(n, S, (*primalSolution)) && !flag) {
+        unsigned int edgeToRemoveIndex;
+        /* Converts the vector <Edge> codification into the vector <bool> codification */
+        for (unsigned int i = 0; i < E.size(); i++) {
+            for (vector <Edge>::iterator it = (*primalSolution).begin(); 
+                    it != (*primalSolution).end(); it++) {
+                if (E[i].u == it->u && E[i].v == it->v) {
+                    isInPrimalSolution[i] = true;
+                }
+            }
+        }
+        /* Search for a conflicting edge to remove */
+        edgeToRemoveIndex = searchEdgeToRemove(n, E, S, isInPrimalSolution, isRemoved, 
+                isRemovable);
+        /* If none found */
+        if (edgeToRemoveIndex >= E.size()) {
+            /* Set flag to stop loop */
+            flag = true;
+        } else {
+            unsigned int edgeToInsertIndex;
+            /* Remove edge from solution */
+            isInPrimalSolution[edgeToRemoveIndex] = false;
+            /* Remove edge from graph */
+            isRemoved[edgeToRemoveIndex] = true;
+            /* Search for a non-conflicting edge that re-connects the solution */
+            edgeToInsertIndex = searchEdgeToInsert(n, E, S, isInPrimalSolution, isRemoved);
+            /* If none found */
+            if (edgeToInsertIndex >= E.size()) {
+                /* Re-add edge to solution */
+                isInPrimalSolution[edgeToRemoveIndex] = true;
+                /* Re-add edge to graph */
+                isRemoved[edgeToRemoveIndex] = false;
+                /* Sets edge as non removable */
+                isRemovable[edgeToRemoveIndex] = false;
+            } else {
+                /* Add edge to solution */
+                isInPrimalSolution[edgeToInsertIndex] = true;
+            }
+        }
+        /* Converts the vector <bool> codification into the vector <Edge> codification */
+        (*primalSolution) = vector <Edge> ();
+        primalBoundValue = 0.0;
+        for (unsigned int i = 0; i < E.size(); i++) {
+            if (isInPrimalSolution[i]) {
+                (*primalSolution).push_back(E[i]);
+                primalBoundValue += E[i].w;
+            }
+        }
     }
     return primalBoundValue;
 }
@@ -363,6 +438,8 @@ bool relaxLag1 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
     (*totalIterations) = 0;
     (*bestPrimalBoundValue) = INFINITE;
     (*bestPrimalBoundIteration) = -1;
+    /* sort the edges of E into nondecreasing order by weight w */
+    sort(E.begin(), E.end(), comparator);
     vector <double> u = initialLagrangeMultipliers(S.size());
     unsigned int iterationsWithoutImprovment = 0;
     while (!termination(tBegin, timeLimit, (*bestDualBoundValue), (*bestPrimalBoundValue), pi, 
@@ -414,7 +491,7 @@ bool relaxLag1 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
         /* Obtaining a feasible primal solution from a (possibly unfeasible) dual solution */
         primalSolution = vector <Edge> (dualSolution);
         primalBoundValue = fixSolution(&primalSolution, n, E, S);
-        if ((*bestPrimalBoundValue) > primalBoundValue) {
+        if (isFeasible(n, S, primalSolution) && (*bestPrimalBoundValue) > primalBoundValue) {
             (*bestPrimalBoundValue) = primalBoundValue;
             (*bestPrimalBoundIteration) = (*totalIterations);
             (*bestPrimalSolution) = primalSolution;
