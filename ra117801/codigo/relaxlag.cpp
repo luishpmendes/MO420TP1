@@ -5,6 +5,7 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <utility>
 #include <vector>
 
 #ifndef INFINITE
@@ -165,6 +166,10 @@ bool readParameters (unsigned int k, unsigned int * timeLimit, double * pi, unsi
     return true;
 }
 
+bool areEdgesExtremesEquals (Edge e, Edge f) {
+    return (minmax(e.u, e.v) == minmax(f.u, f.v));
+}
+
 bool readInput (unsigned int * n, vector <Edge> * E, vector <ConflictingPair> * S, 
         char * inputFilePath) {
     ifstream inputFileStream(inputFilePath, ifstream::in);
@@ -196,10 +201,10 @@ bool readInput (unsigned int * n, vector <Edge> * E, vector <ConflictingPair> * 
     for (unsigned int j = 0; j < p; j++) {
         inputFileStream >> (*S)[j].e.u >> (*S)[j].e.v >> (*S)[j].f.u >> (*S)[j].f.v;
         for (vector <Edge>::iterator it = (*E).begin(); it != (*E).end(); it++) {
-            if ((*S)[j].e.u == it->u && (*S)[j].e.v == it->v) {
+            if (areEdgesExtremesEquals((*S)[j].e, (*it))) {
                 (*S)[j].e.w = it->w;
             }
-            if ((*S)[j].f.u == it->u && (*S)[j].f.v == it->v) {
+            if (areEdgesExtremesEquals((*S)[j].f, (*it))) {
                 (*S)[j].f.w = it->w;
             }
         }
@@ -250,8 +255,7 @@ bool isFeasible (unsigned int n, vector <ConflictingPair> S, vector <Edge> solut
     for (vector <ConflictingPair>::iterator it = S.begin(); it != S.end(); it++) {
         unsigned int counter = 0;
         for (vector <Edge>::iterator it2 = solution.begin(); it2 != solution.end(); it2++) {
-            if ((it->e.u == it2->u && it->e.v == it2->v) || 
-                    (it->f.u == it2->u && it->f.v == it2->v)) {
+            if (areEdgesExtremesEquals(it->e, (*it2)) || areEdgesExtremesEquals(it->f, (*it2))) {
                 counter++;
             }
             if (counter >= 2) {
@@ -265,7 +269,7 @@ bool isFeasible (unsigned int n, vector <ConflictingPair> S, vector <Edge> solut
 void removeEdge (vector <Edge> * E, Edge e) {
     unsigned int i;
     for (i = 0; i < (*E).size(); i++) {
-        if ((*E)[i].u == e.u && (*E)[i].v == e.v) {
+        if (areEdgesExtremesEquals((*E)[i], e)) {
             break;
         }
     }
@@ -294,8 +298,7 @@ unsigned int searchEdgeToRemove (unsigned int n, vector <Edge> E, vector <Confli
         unsigned int counter = 0;
         for (unsigned int i = 0; i < E.size(); i++) {
             if (isInPrimalSolution[i]) {
-                if ((it->e.u == E[i].u && it->e.v == E[i].v) || 
-                        (it->f.u == E[i].u && it->f.v == E[i].v)) {
+                if (areEdgesExtremesEquals (it->e, E[i]) || areEdgesExtremesEquals(it->f, E[i])) {
                     counter++;
                 }
                 if (counter >= 2) {
@@ -338,12 +341,12 @@ unsigned int searchEdgeToInsert (unsigned int n, vector <Edge> E, vector <Confli
                 bool conflict = false;
                 for (vector <ConflictingPair>::iterator it = S.begin(); 
                         it != S.end() && !conflict; it++) {
-                    if ((it->e.u == E[i].u && it->e.v == E[i].v) || 
-                            (it->f.u == E[i].u && it->f.v == E[i].v)) {
+                    if (areEdgesExtremesEquals(it->e, E[i]) || 
+                            areEdgesExtremesEquals(it->f, E[i])) {
                         for (vector <Edge>::iterator it2 = primalSolution.begin(); 
                                 it2 != primalSolution.end(); it2++) {
-                            if ((it->e.u == it2->u && it->e.v == it2->v) || 
-                                    (it->f.u == it2->u && it->f.v == it2->v)) {
+                            if (areEdgesExtremesEquals(it->e, (*it2)) || 
+                                    areEdgesExtremesEquals(it->f, (*it2))) {
                                 conflict = true;
                             }
                         }
@@ -369,7 +372,7 @@ double fixSolution (vector <Edge> * primalSolution, unsigned int n, vector <Edge
     for (unsigned int i = 0; i < E.size(); i++) {
         for (vector <Edge>::iterator it = (*primalSolution).begin(); 
                 it != (*primalSolution).end(); it++) {
-            if (E[i].u == it->u && E[i].v == it->v) {
+            if (areEdgesExtremesEquals(E[i], (*it))) {
                 it->w = E[i].w;
                 primalBoundValue += E[i].w;
             }
@@ -382,7 +385,7 @@ double fixSolution (vector <Edge> * primalSolution, unsigned int n, vector <Edge
         for (unsigned int i = 0; i < E.size(); i++) {
             for (vector <Edge>::iterator it = (*primalSolution).begin(); 
                     it != (*primalSolution).end(); it++) {
-                if (E[i].u == it->u && E[i].v == it->v) {
+                if (areEdgesExtremesEquals(E[i], (*it))) {
                     isInPrimalSolution[i] = true;
                 }
             }
@@ -451,8 +454,8 @@ bool relaxLag1 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
         /* Solving the Lagrangian problem with the current set of multipliers */
         for (unsigned int i = 0; i < S.size(); i++) {
             for (vector <Edge>::iterator it = Eu.begin(); it != Eu.end(); it++) {
-                if ((it->u == S[i].e.u && it->v == S[i].e.u) || 
-                        (it->u == S[i].f.u && it->v == S[i].f.v)) {
+                if (areEdgesExtremesEquals((*it), S[i].e) || 
+                        areEdgesExtremesEquals((*it), S[i].f)) {
                     it->w += u[i];
                 }
             }
@@ -479,8 +482,8 @@ bool relaxLag1 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
         for (unsigned int i = 0; i < S.size(); i++) {
             for (vector <Edge>::iterator it = dualSolution.begin(); it != dualSolution.end(); 
                     it++) {
-                if ((it->u == S[i].e.u && it->v == S[i].e.v) || 
-                        (it->u == S[i].f.u && it->v == S[i].f.v)) {
+                if (areEdgesExtremesEquals((*it), S[i].e) || 
+                        areEdgesExtremesEquals((*it), S[i].f)) {
                     G[i] += 1.0;
                 }
             }
