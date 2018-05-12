@@ -519,7 +519,138 @@ bool relaxLag2 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
         vector <Edge> * bestPrimalSolution, unsigned int n, vector <Edge> E, 
         vector <ConflictingPair> S, chrono :: high_resolution_clock :: time_point tBegin, 
         unsigned int timeLimit, double pi, unsigned int N, double minPi) {
-    /* TODO */
+    (*bestDualBoundValue) = -INFINITE;
+    (*bestDualBoundIteration) = 0;
+    (*totalIterations) = 0;
+    (*bestPrimalBoundValue) = INFINITE;
+    (*bestPrimalBoundIteration) = -1;
+    /* sort the edges of E into nondecreasing order by weight w */
+    sort(E.begin(), E.end(), comparator);
+    /* Denote por Se o conjunto de pares conflitantes de S envolvendo a aresta e */
+    vector < vector <ConflictingPair> > Se (E.size());
+    for (unsigned int i = 0; i < E.size(); i++) {
+        for (vector <ConflictingPair>::iterator it = S.begin(); it != S.end(); it++) {
+            if (areEdgesExtremesEquals(E[i], it->e) || areEdgesExtremesEquals(E[i], it->f)) {
+                Se[i].push_back((*it));
+            }
+        }
+    }
+    /* Seja ainda e* a aresta de E com menor custo para a qual Se não é vazio */
+    unsigned int eStarIndex;
+    for (eStarIndex = 0; eStarIndex < E.size(); eStarIndex++) {
+        if (Se[eStarIndex].size() > 0) {
+            break;
+        }
+    }
+    vector <ConflictingPair> SminusSeStar;
+    for (vector <ConflictingPair>::iterator it = S.begin(); it != S.end(); it++) {
+        bool found = false;
+        for (vector <ConflictingPair>::iterator it2 = Se[eStarIndex].begin(); 
+                it2 != Se[eStarIndex].end() && !found; it2++) {
+            if (areEdgesExtremesEquals(it->e, it2->e) && areEdgesExtremesEquals(it->f, it2->f)) {
+                found = true;
+            }
+        }
+        if (!found) {
+            SminusSeStar.push_back((*it));
+        }
+    }
+    vector <Edge> EeStar;
+    for (vector <Edge>::iterator it = E.begin(); it != E.end(); it++) {
+        if (!areEdgesExtremesEquals((*it), E[eStarIndex])) {
+            bool conflictsWithEStar = false;
+            for (vector <ConflictingPair>::iterator it2 = Se[eStarIndex].begin(); 
+                    it2 != Se[eStarIndex].end() && !conflictsWithEStar; it2++) {
+                if (areEdgesExtremesEquals((*it), it2->e) || 
+                        areEdgesExtremesEquals((*it), it2->f)) {
+                    conflictsWithEStar = true;
+                }
+            }
+            if (conflictsWithEStar) {
+                EeStar.push_back((*it));
+            }
+        }
+    }
+    vector <Edge> EminusEeStar;
+    for (vector <Edge>::iterator it = E.begin(); it != E.end(); it++) {
+        bool found = false;
+        for (vector <Edge>::iterator it2 = EeStar.begin(); it2 != EeStar.end() && !found; it2++) {
+            if (areEdgesExtremesEquals((*it), (*it2))) {
+                found = true;
+            }
+        }
+        if (!found) {
+            EminusEeStar.push_back((*it));
+        }
+    }
+    vector <double> u = initialLagrangeMultipliers(SminusSeStar.size());
+    unsigned int iterationsWithoutImprovment = 0;
+    while (!termination(tBegin, timeLimit, (*bestDualBoundValue), (*bestPrimalBoundValue), pi, 
+                minPi)) {
+        double dualBoundValue, primalBoundValue, stepSize;
+        vector <Edge> Eu(EminusEeStar), dualSolution, primalSolution;
+        vector <double> G(SminusSeStar.size(), -1.0);
+        (*totalIterations)++;
+        /* Solving the Lagrangian problem with the current set of multipliers */
+        for (unsigned int i = 0; i < SminusSeStar.size(); i++) {
+            for (vector <Edge>::iterator it = Eu.begin(); it != Eu.end(); it++) {
+                if (areEdgesExtremesEquals((*it), SminusSeStar[i].e) || 
+                        areEdgesExtremesEquals((*it), SminusSeStar[i].f)) {
+                    it->w += u[i];
+                }
+            }
+        }
+        dualBoundValue = kruskal(&dualSolution, n, Eu);
+        for (vector <double>::iterator it = u.begin(); it != u.end(); it++) {
+            dualBoundValue -= (*it);
+        }
+        if ((*bestDualBoundValue) < dualBoundValue) {
+            (*bestDualBoundValue) = dualBoundValue;
+            (*bestDualBoundIteration) = (*totalIterations);
+            iterationsWithoutImprovment = 0;
+        } else {
+            iterationsWithoutImprovment++;
+        }
+        /* If bestDualBoundValue has not improved in the last N subgradient iterations */
+        /* with the current value of π */
+        if (iterationsWithoutImprovment >= N) {
+            /* then halve π */
+            pi /= 2.0;
+            iterationsWithoutImprovment = 0;
+        }
+        /* Defining subgradients for the relaxed constraints, evaluated at the current solution */
+        for (unsigned int i = 0; i < SminusSeStar.size(); i++) {
+            for (vector <Edge>::iterator it = dualSolution.begin(); it != dualSolution.end(); 
+                    it++) {
+                if (areEdgesExtremesEquals((*it), SminusSeStar[i].e) || 
+                        areEdgesExtremesEquals((*it), SminusSeStar[i].f)) {
+                    G[i] += 1.0;
+                }
+            }
+            if (fabs(u[i]) < EPSILON && G[i] < 0.0) {
+                G[i] = 0.0;
+            }
+        }
+        /* Obtaining a feasible primal solution from a (possibly unfeasible) dual solution */
+        primalSolution = vector <Edge> (dualSolution);
+        primalBoundValue = fixSolution(&primalSolution, n, E, S);
+        if (isFeasible(n, S, primalSolution) && (*bestPrimalBoundValue) > primalBoundValue) {
+            (*bestPrimalBoundValue) = primalBoundValue;
+            (*bestPrimalBoundIteration) = (*totalIterations);
+            (*bestPrimalSolution) = primalSolution;
+        }
+        /* Defining a step size */
+        stepSize = 0.0;
+        for (vector <double>::iterator it = G.begin(); it != G.end(); it++) {
+            stepSize += (*it) * (*it);
+        }
+        stepSize = (pi * ((*bestPrimalBoundValue) - dualBoundValue)) / stepSize;
+        /* Updating Lagrange multipliers */
+        for (unsigned int i = 0; i < u.size(); i++) {
+            u[i] = max(0.0, u[i] + stepSize * G[i]);
+        }
+    }
+    (*totalIterations)++;
     return true;
 }
 
