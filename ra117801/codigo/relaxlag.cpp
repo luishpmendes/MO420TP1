@@ -252,7 +252,7 @@ bool termination (chrono::high_resolution_clock::time_point tBegin, unsigned int
     /* that bestPrimalBoundValue == bestDualBoundValue.  */
     /* In this case the value of the maximum lower bound coincides with the value of a feasible */
     /* solution and so it must be optimal */
-    if (bestDualBoundValue == bestPrimalBoundValue) {
+    if (fabs(bestDualBoundValue - bestPrimalBoundValue) < 1.0) {
         return true;
     }
 
