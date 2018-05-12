@@ -533,15 +533,32 @@ bool relaxLag2 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
         vector <Edge> * bestPrimalSolution, unsigned int n, vector <Edge> E, 
         vector <ConflictingPair> S, chrono :: high_resolution_clock :: time_point tBegin, 
         unsigned int timeLimit, double pi, unsigned int N, double minPi) {
+    vector < vector <ConflictingPair> > Se;
+    unsigned int eStarIndex;
+    vector <ConflictingPair> SminusSeStar;
+    vector <Edge> EeStar, EminusEeStar, dualSolution, primalSolution;
+    vector <double> u;
+    unsigned int iterationsWithoutImprovment;
+    double dualBoundValue, primalBoundValue;
     (*bestDualBoundValue) = -INFINITE;
-    (*bestDualBoundIteration) = 0;
+    (*bestDualBoundIteration) = -1;
     (*totalIterations) = 0;
     (*bestPrimalBoundValue) = INFINITE;
     (*bestPrimalBoundIteration) = -1;
     /* sort the edges of E into nondecreasing order by weight w */
     sort(E.begin(), E.end(), comparator);
+    dualBoundValue = kruskal(&dualSolution, n, E);
+    if ((*bestDualBoundValue) < dualBoundValue) {
+        (*bestDualBoundValue) = dualBoundValue;
+    }
+    primalSolution = vector <Edge> (dualSolution);
+    primalBoundValue = fixSolution(&primalSolution, n, E, S);
+    if (isFeasible(n, S, primalSolution) && (*bestPrimalBoundValue) > primalBoundValue) {
+        (*bestPrimalBoundValue) = primalBoundValue;
+        (*bestPrimalSolution) = primalSolution;
+    }
     /* Denote por Se o conjunto de pares conflitantes de S envolvendo a aresta e */
-    vector < vector <ConflictingPair> > Se (E.size());
+    Se = vector < vector <ConflictingPair> > (E.size());
     for (unsigned int i = 0; i < E.size(); i++) {
         for (vector <ConflictingPair>::iterator it = S.begin(); it != S.end(); it++) {
             if (areEdgesExtremesEquals(E[i], it->e) || areEdgesExtremesEquals(E[i], it->f)) {
@@ -550,13 +567,11 @@ bool relaxLag2 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
         }
     }
     /* Seja ainda e* a aresta de E com menor custo para a qual Se não é vazio */
-    unsigned int eStarIndex;
     for (eStarIndex = 0; eStarIndex < E.size(); eStarIndex++) {
         if (Se[eStarIndex].size() > 0) {
             break;
         }
     }
-    vector <ConflictingPair> SminusSeStar;
     for (vector <ConflictingPair>::iterator it = S.begin(); it != S.end(); it++) {
         bool found = false;
         for (vector <ConflictingPair>::iterator it2 = Se[eStarIndex].begin(); 
@@ -569,7 +584,6 @@ bool relaxLag2 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
             SminusSeStar.push_back((*it));
         }
     }
-    vector <Edge> EeStar;
     for (vector <Edge>::iterator it = E.begin(); it != E.end(); it++) {
         if (!areEdgesExtremesEquals((*it), E[eStarIndex])) {
             bool conflictsWithEStar = false;
@@ -585,7 +599,6 @@ bool relaxLag2 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
             }
         }
     }
-    vector <Edge> EminusEeStar;
     for (vector <Edge>::iterator it = E.begin(); it != E.end(); it++) {
         bool found = false;
         for (vector <Edge>::iterator it2 = EeStar.begin(); it2 != EeStar.end() && !found; it2++) {
@@ -597,12 +610,12 @@ bool relaxLag2 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
             EminusEeStar.push_back((*it));
         }
     }
-    vector <double> u = initialLagrangeMultipliers(SminusSeStar.size());
-    unsigned int iterationsWithoutImprovment = 0;
+    u = initialLagrangeMultipliers(SminusSeStar.size());
+    iterationsWithoutImprovment = 0;
     while (!termination(tBegin, timeLimit, (*bestDualBoundValue), (*bestPrimalBoundValue), pi, 
                 minPi)) {
-        double dualBoundValue, primalBoundValue, stepSize;
-        vector <Edge> Eu(EminusEeStar), dualSolution, primalSolution;
+        double stepSize;
+        vector <Edge> Eu(EminusEeStar);
         vector <double> G(SminusSeStar.size(), -1.0);
         (*totalIterations)++;
         /* Solving the Lagrangian problem with the current set of multipliers */
