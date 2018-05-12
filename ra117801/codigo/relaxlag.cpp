@@ -436,19 +436,33 @@ bool relaxLag1 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
         vector <Edge> * bestPrimalSolution, unsigned int n, vector <Edge> E, 
         vector <ConflictingPair> S, chrono::high_resolution_clock::time_point tBegin, 
         unsigned int timeLimit, double pi, unsigned int N, double minPi) {
+    vector <double> u;
+    unsigned int iterationsWithoutImprovment;
+    double dualBoundValue, primalBoundValue;
+    vector <Edge> dualSolution, primalSolution;
     (*bestDualBoundValue) = -INFINITE;
-    (*bestDualBoundIteration) = 0;
+    (*bestDualBoundIteration) = -1;
     (*totalIterations) = 0;
     (*bestPrimalBoundValue) = INFINITE;
     (*bestPrimalBoundIteration) = -1;
     /* sort the edges of E into nondecreasing order by weight w */
     sort(E.begin(), E.end(), comparator);
-    vector <double> u = initialLagrangeMultipliers(S.size());
-    unsigned int iterationsWithoutImprovment = 0;
+    dualBoundValue = kruskal(&dualSolution, n, E);
+    if ((*bestDualBoundValue) < dualBoundValue) {
+        (*bestDualBoundValue) = dualBoundValue;
+    }
+    primalSolution = vector <Edge> (dualSolution);
+    primalBoundValue = fixSolution(&primalSolution, n, E, S);
+    if (isFeasible(n, S, primalSolution) && (*bestPrimalBoundValue) > primalBoundValue) {
+        (*bestPrimalBoundValue) = primalBoundValue;
+        (*bestPrimalSolution) = primalSolution;
+    }
+    u = initialLagrangeMultipliers(S.size());
+    iterationsWithoutImprovment = 0;
     while (!termination(tBegin, timeLimit, (*bestDualBoundValue), (*bestPrimalBoundValue), pi, 
                 minPi)) {
-        double dualBoundValue, primalBoundValue, stepSize;
-        vector <Edge> Eu(E), dualSolution, primalSolution;
+        double stepSize;
+        vector <Edge> Eu(E);
         vector <double> G(S.size(), -1.0);
         (*totalIterations)++;
         /* Solving the Lagrangian problem with the current set of multipliers */
