@@ -518,7 +518,7 @@ bool relaxLag1 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
         for (vector <double>::iterator it = G.begin(); it != G.end(); it++) {
             stepSize += (*it) * (*it);
         }
-        stepSize = (pi * ((*bestPrimalBoundValue) - dualBoundValue)) / stepSize;
+        stepSize = (pi * ((1.05 * (*bestPrimalBoundValue)) - dualBoundValue)) / stepSize;
         /* Updating Lagrange multipliers */
         for (unsigned int i = 0; i < u.size(); i++) {
             u[i] = max(0.0, u[i] + stepSize * G[i]);
