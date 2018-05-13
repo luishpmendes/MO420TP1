@@ -492,6 +492,22 @@ double fixSolution (vector <Edge> * primalSolution, unsigned int n, vector <Edge
     return primalBoundValue;
 }
 
+void writeOutput (int iteration, chrono::high_resolution_clock::time_point tBegin, 
+        double dualBoundValue, double primalBoundValue) {
+    chrono::high_resolution_clock::time_point tCurrent = chrono::high_resolution_clock::now();
+    chrono::seconds elapsedTime = chrono::duration_cast <chrono::seconds> (tCurrent - tBegin);
+
+    cout << iteration << " ";
+    cout << elapsedTime.count() << " ";
+    cout << fixed << setprecision(6) << dualBoundValue << " ";
+
+    if (!isnan(primalBoundValue)) {
+        cout << ((int) primalBoundValue) << endl;
+    } else {
+        cout << "NaN" << endl;
+    }
+}
+
 bool relaxLag1 (double * bestDualBoundValue, int * bestDualBoundIteration, int * totalIterations, 
         double * bestPrimalBoundValue, int * bestPrimalBoundIteration, 
         vector <Edge> * bestPrimalSolution, unsigned int n, vector <Edge> E, 
@@ -523,6 +539,12 @@ bool relaxLag1 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
     if (isFeasible(n, S, primalSolution) && (*bestPrimalBoundValue) > primalBoundValue) {
         (*bestPrimalBoundValue) = primalBoundValue;
         (*bestPrimalSolution) = primalSolution;
+    }
+
+    if (isFeasible(n, S, primalSolution)) {
+        writeOutput((*totalIterations), tBegin, dualBoundValue, primalBoundValue);
+    } else {
+        writeOutput((*totalIterations), tBegin, dualBoundValue, nan(""));
     }
 
     u = initialLagrangeMultipliers(S.size());
@@ -593,6 +615,12 @@ bool relaxLag1 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
             (*bestPrimalSolution) = primalSolution;
         }
 
+        if (isFeasible(n, S, primalSolution)) {
+            writeOutput((*totalIterations), tBegin, dualBoundValue, primalBoundValue);
+        } else {
+            writeOutput((*totalIterations), tBegin, dualBoundValue, nan(""));
+        }
+
         /* Defining a step size */
         stepSize = 0.0;
 
@@ -647,6 +675,12 @@ bool relaxLag2 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
     if (isFeasible(n, S, primalSolution) && (*bestPrimalBoundValue) > primalBoundValue) {
         (*bestPrimalBoundValue) = primalBoundValue;
         (*bestPrimalSolution) = primalSolution;
+    }
+
+    if (isFeasible(n, S, primalSolution)) {
+        writeOutput((*totalIterations), tBegin, dualBoundValue, primalBoundValue);
+    } else {
+        writeOutput((*totalIterations), tBegin, dualBoundValue, nan(""));
     }
 
     /* Denote por Se o conjunto de pares conflitantes de S envolvendo a aresta e */
@@ -780,6 +814,12 @@ bool relaxLag2 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
             (*bestPrimalBoundValue) = primalBoundValue;
             (*bestPrimalBoundIteration) = (*totalIterations);
             (*bestPrimalSolution) = primalSolution;
+        }
+
+        if (isFeasible(n, S, primalSolution)) {
+            writeOutput((*totalIterations), tBegin, dualBoundValue, primalBoundValue);
+        } else {
+            writeOutput((*totalIterations), tBegin, dualBoundValue, nan(""));
         }
 
         /* Defining a step size */
