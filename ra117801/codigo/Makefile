@@ -1,14 +1,15 @@
 CPPC=g++
 CFLAGS=-Wall -Werror -g -O0 -fno-inline -std=c++11
-DEPS = relaxlag.cpp
-OBJ = relaxlag.o
 
-%.o: %.cpp $(DEPS)
+%.o: %.cpp
 	$(CPPC) -c -o $@ $< $(CFLAGS)
 
-relaxlag: $(OBJ)
+clean:
+	rm -rf *.o relaxlag resultValidator
+
+relaxlag: relaxlag.o
 	$(CPPC) -o $@ $^ $(CFLAGS)
 
-clean:
-	rm -rf $(OBJ) relaxlag
+resultValidator: resultValidator.o
+	$(CPPC) -o $@ $^ $(CFLAGS)
 
