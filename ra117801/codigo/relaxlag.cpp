@@ -151,6 +151,24 @@ bool sameComponent (Sets S, unsigned int u, unsigned int v) {
     return false;
 }
 
+bool isConnected (unsigned int n, vector <Edge> E) {
+    bool result = true;
+
+    Sets components = connectedComponents(n, E);
+
+    for (unsigned int u = 0; u < n - 1 && result; u++) {
+        for (unsigned int v = u + 1; v < n && result; v++) {
+            if (!sameComponent(components, u, v)) {
+                result = false;
+            }
+        }
+    }
+
+    SETSdestroy(&components);
+
+    return result;
+}
+
 bool readParameters (unsigned int k, unsigned int * timeLimit, double * pi, unsigned int * N, 
         double * minPi) {
     ifstream parameterFileStream(k == 1 ? "param1" : "param2", ifstream::in);
