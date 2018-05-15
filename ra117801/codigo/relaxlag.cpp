@@ -287,21 +287,13 @@ bool isFeasible (unsigned int n, vector <ConflictingPair> S, vector <Edge> solut
         return false;
     }
 
-    Sets components = connectedComponents(n, solution);
-
-    for (unsigned int u = 0; u < n; u++) {
-        for (unsigned int v = u + 1; v < n; v++) {
-            if (!sameComponent(components, u, v)) {
-                SETSdestroy(&components);
-                return false;
-            }
-        }
+    if (!isConnected(n, solution)) {
+        return false;
     }
-
-    SETSdestroy(&components);
 
     for (vector <ConflictingPair>::iterator it = S.begin(); it != S.end(); it++) {
         unsigned int counter = 0;
+
         for (vector <Edge>::iterator it2 = solution.begin(); it2 != solution.end(); it2++) {
             if (areEdgesExtremesEquals(it->e, (*it2)) || areEdgesExtremesEquals(it->f, (*it2))) {
                 counter++;
