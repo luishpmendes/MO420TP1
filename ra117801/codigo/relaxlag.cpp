@@ -299,15 +299,13 @@ bool isFeasible (unsigned int n, vector <ConflictingPair> S, vector <Edge> solut
 }
 
 void removeEdge (vector <Edge> * E, Edge e) {
-    unsigned int i;
-
-    for (i = 0; i < (*E).size(); i++) {
-        if (areEdgesExtremesEquals((*E)[i], e)) {
-            break;
-        }
+    vector <Edge>::iterator it = (*E).begin();
+    while (it != (*E).end() && !areEdgesExtremesEquals((*it), e)) {
+        it++;
     }
-
-    (*E).erase((*E).begin() + i);
+    if (it != (*E).end()) {
+        (*E).erase(it);
+    }
 }
 
 bool isBridge (unsigned int n, vector <Edge> E, Edge e) {
