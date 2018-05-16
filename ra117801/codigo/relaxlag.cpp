@@ -5,6 +5,7 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <list>
 #include <utility>
 #include <vector>
 
@@ -892,6 +893,166 @@ bool writeResult (char * resultFilePath, double bestDualBoundValue, int bestDual
     return true;
 }
 
+vector < list < pair <unsigned int, double> > > toAdjacencyList (unsigned int n, 
+        vector <Edge> E) {
+    vector < list < pair <unsigned int, double> > > adj (n);
+
+    for (vector <Edge>::iterator it = E.begin(); it != E.end(); it++) {
+        Edge e = (*it);
+        adj[e.u].push_back(make_pair(e.v, e.w));
+        adj[e.v].push_back(make_pair(e.u, e.w));
+    }
+
+    return adj;
+}
+
+void removeEdgeFromAdjacencyList(vector < list < pair <unsigned int, double> > > adj, Edge e) {
+    /* Searchs for edge (u, v) */
+    list < pair <unsigned int, double> >::iterator it = adj[e.u].begin();
+
+    while (it != adj[e.u].end() && it->first != e.v) {
+        it++;
+    }
+
+    /* If found, remove edge (u, v) */
+    if (it != adj[e.u].end()) {
+        adj[e.u].erase(it);
+    }
+
+    /* Searched for edge (v, u) */
+    it = adj[e.v].begin();
+
+    while (it != adj[e.v].end() && it->first != e.u) {
+        it++;
+    }
+
+    /* If found, remove edge (v, u) */
+    if (it != adj[e.v].end()) {
+        adj[e.v].erase(it);
+    }
+}
+
+void bridgesAux (vector <list < pair <unsigned int, double> > > adj, unsigned int * time, 
+        vector <bool> * visited, vector <unsigned int> * disc, vector <unsigned int> * low, 
+        vector <unsigned int> * parent, unsigned int u, vector <Edge> * bridges) {
+    (*visited)[u] = true;
+    (*time)++;
+    (*disc)[u] = (*time);
+    (*low)[u] = (*time);
+
+    for (list < pair <unsigned int, double> >::iterator it = adj[u].begin(); it != adj[u].end(); 
+            it++) {
+        unsigned int v = (*it).first;
+        double w = (*it).second;
+
+        if (!(*visited)[v]) {
+            (*parent)[v] = u;
+            bridgesAux(adj, time, visited, disc, low, parent, v, bridges);
+
+            if ((*low)[u] > (*low)[v]) {
+                (*low)[u] = (*low)[v];
+            }
+
+            if ((*low)[v] > (*disc)[u]) {
+                Edge e;
+                e.u = u;
+                e.v = v;
+                e.w = w;
+                (*bridges).push_back(e);
+            }
+        } else if (v != (*parent)[u] && (*low)[u] > (*disc)[v]) {
+            (*low)[u] = (*disc)[v];
+        }
+    }
+}
+
+vector <Edge> getBridges (vector <list < pair <unsigned int, double> > > adj) {
+    vector <Edge> result;
+    unsigned int time = 0;
+    vector <bool> visited (adj.size(), false);
+    vector <unsigned int> disc (adj.size(), 0), low (adj.size(), 0);
+    vector <unsigned int> parent (adj.size(), adj.size());
+
+    for (unsigned int u = 0; u < adj.size(); u++) {
+        if (!visited[u]) {
+            bridgesAux(adj, &time, &visited, &disc, &low, &parent, u, &result);
+        }
+    }
+
+    return result;
+}
+
+void preProcessingPhase1 (unsigned int n, vector <Edge> * E, vector <ConflictingPair> * S, 
+        vector <Edge> * fixedEdges) {
+    bool flag = false;
+
+    vector < list < pair <unsigned int, double> > > adj = toAdjacencyList (n, (*E));
+
+    while (!flag && isConnected(n, (*E))) {
+        vector <Edge> bridges = getBridges(adj);
+
+        for (vector <Edge>::iterator it = (*fixedEdges).begin(); it != (*fixedEdges).end(); it++) {
+            removeEdge(&bridges, (*it));
+        }
+
+        /* For each bridge e not yet fixed */
+        for (vector <Edge>::iterator it = bridges.begin(); it != bridges.end(); it++) {
+            Edge e = (*it);
+
+            /* Add e to the fixedEdges */
+            (*fixedEdges).push_back(e);
+
+            /* For each conflicting pair containing e */
+            for (vector <ConflictingPair>::iterator it2 = (*S).begin(); it2 != (*S).end();) {
+                if (areEdgesExtremesEquals(e, it2->e)) {
+                    /* Remove the conflicing edge from the graph */
+                    removeEdge(E, it2->f);
+                    removeEdgeFromAdjacencyList(adj, it2->f);
+
+                    /* Remove the conflicting pair */
+                    it2 = (*S).erase(it2);
+                } else if (areEdgesExtremesEquals(e, it2->f)) {
+                    /* Remove the conflicing edge from the graph */
+                    removeEdge(E, it2->e);
+                    removeEdgeFromAdjacencyList(adj, it2->e);
+
+                    /* Remove the conflicting pair */
+                    it2 = (*S).erase(it2);
+                } else {
+                    it2++;
+                }
+            }
+        }
+
+        if (bridges.size() <= 0) {
+            flag = true;
+        }
+    }
+}
+
+bool preProcessingPhase2 (unsigned int n, vector <Edge> * E, vector <ConflictingPair> * S, 
+        vector <Edge> * fixedEdges) {
+    bool result = false;
+    /* TODO */
+    return result;
+}
+
+bool preProcessingPhase3 (unsigned int n, vector <Edge> * E, vector <ConflictingPair> * S, 
+        vector <Edge> * fixedEdges) {
+    bool result = false;
+    /* TODO */
+    return result;
+}
+
+void preProcessing (unsigned int n, vector <Edge> * E, vector <ConflictingPair> * S, 
+        vector <Edge> * fixedEdges) {
+    do {
+        do {
+            preProcessingPhase1(n, E, S, fixedEdges);
+        } while (isConnected(n, (*E)) && preProcessingPhase2(n, E, S, fixedEdges));
+    } while (isConnected(n, (*E)) && preProcessingPhase3(n, E, S, fixedEdges));
+}
+
 int main (int argc, char * argv[]) {
     chrono::high_resolution_clock::time_point tBegin = chrono::high_resolution_clock::now();
 
@@ -922,6 +1083,9 @@ int main (int argc, char * argv[]) {
     if (!readInput(&n, &E, &S, argv[2])) {
         cerr << "Error while reading input!" << endl;
     }
+
+    vector <Edge> fixedEdges;
+    preProcessing (n, &E, &S, &fixedEdges);
 
     double bestDualBoundValue, bestPrimalBoundValue;
     int bestDualBoundIteration, totalIterations, bestPrimalBoundIteration;
