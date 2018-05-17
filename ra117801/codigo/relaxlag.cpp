@@ -560,8 +560,6 @@ bool relaxLag1 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
         vector <Edge> Eu(E);
         vector <double> G(S.size(), -1.0);
 
-        (*totalIterations)++;
-
         /* Solving the Lagrangian problem with the current set of multipliers */
         for (unsigned int i = 0; i < S.size(); i++) {
             for (vector <Edge>::iterator it = Eu.begin(); it != Eu.end(); it++) {
@@ -638,6 +636,8 @@ bool relaxLag1 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
         for (unsigned int i = 0; i < u.size(); i++) {
             u[i] = max(0.0, u[i] + stepSize * G[i]);
         }
+
+        (*totalIterations)++;
     }
 
     (*totalIterations)++;
@@ -756,8 +756,6 @@ bool relaxLag2 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
         vector <Edge> Eu(EminusEeStar);
         vector <double> G(SminusSeStar.size(), -1.0);
 
-        (*totalIterations)++;
-
         /* Solving the Lagrangian problem with the current set of multipliers */
         for (unsigned int i = 0; i < SminusSeStar.size(); i++) {
             for (vector <Edge>::iterator it = Eu.begin(); it != Eu.end(); it++) {
@@ -834,6 +832,8 @@ bool relaxLag2 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
         for (unsigned int i = 0; i < u.size(); i++) {
             u[i] = max(0.0, u[i] + stepSize * G[i]);
         }
+
+        (*totalIterations)++;
     }
 
     (*totalIterations)++;
