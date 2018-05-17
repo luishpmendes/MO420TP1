@@ -1033,7 +1033,66 @@ void preProcessingPhase1 (unsigned int n, vector <Edge> * E, vector <Conflicting
 bool preProcessingPhase2 (unsigned int n, vector <Edge> * E, vector <ConflictingPair> * S, 
         vector <Edge> * fixedEdges) {
     bool result = false;
-    /* TODO */
+
+    /* For each edge e that is conflicting with some edge */
+    for (vector <Edge>::iterator it = (*E).begin(); it != (*E).end();) {
+        Edge e = (*it);
+
+        if (isConflictingWithSomeEdge((*S), e)) {
+            /* Create a copy of the graph */
+            vector <Edge> Eprime ((*E));
+
+            /* Create a copy of the conflicting pairs */
+            vector <ConflictingPair> Sprime ((*S));
+
+            /* Create a copy of the fixed edges */
+            vector <Edge> fixedEdgesPrime ((*fixedEdges));
+
+            /* Fix e in the copied instance */
+            /* by removing the edges that conflict with e from the copied graph */
+            /* and removing conflicts involving e from the copied conflicting pairs */
+            for (vector <ConflictingPair>::iterator it2 = Sprime.begin(); it2 != Sprime.end();) {
+                if (areEdgesExtremesEquals(e, it2->e)) {
+                    removeEdge(&Eprime, it2->f);
+
+                    it2 = Sprime.erase(it2);
+                } else if (areEdgesExtremesEquals(e, it2->f)) {
+                    removeEdge(&Eprime, it2->e);
+
+                    it2 = Sprime.erase(it2);
+                } else {
+                    it2++;
+                }
+            }
+
+            /* Apply pre-processing phase 1 in the copied instance */
+            /* in order to fix the new bridges */
+            preProcessingPhase1(n, &Eprime, &Sprime, &fixedEdgesPrime);
+
+            /* If the copied graph becomes disconnected */
+            if (!isConnected(n, Eprime)) {
+                /* Removes conflicts involving e */
+                for (vector <ConflictingPair>::iterator it2 = (*S).begin(); it2 != (*S).end();) {
+                    if (areEdgesExtremesEquals(e, it2->e) || areEdgesExtremesEquals(e, it2->f)) {
+                        it2 = (*S).erase(it2);
+                    } else {
+                        it2++;
+                    }
+                }
+
+                /* Remove e from the graph */
+                it = (*E).erase(it);
+
+                /* Update return value */
+                result = true;
+            } else {
+                it++;
+            }
+        } else {
+            it++;
+        }
+    }
+
     return result;
 }
 
