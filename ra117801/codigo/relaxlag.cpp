@@ -319,15 +319,6 @@ void removeEdge (vector <Edge> * E, Edge e) {
     }
 }
 
-bool isBridge (unsigned int n, vector <Edge> E, Edge e) {
-    Sets components;
-
-    removeEdge (&E, e);
-    components = connectedComponents(n, E);
-
-    return !sameComponent(components, e.u, e.v);
-}
-
 unsigned int searchEdgeToRemove (unsigned int n, vector <Edge> E, vector <ConflictingPair> S, 
         vector <bool> isInPrimalSolution, vector <bool> isRemoved, vector <bool> isRemovable) {
     int result = E.size();
@@ -360,8 +351,7 @@ unsigned int searchEdgeToRemove (unsigned int n, vector <Edge> E, vector <Confli
     for (unsigned int i = 0; i < E.size(); i++) {
         if (isInPrimalSolution[i] && isRemovable[i] && conflictsCounter[i] > 0 && 
                 (maxConflicts < conflictsCounter[i] || 
-                 (maxConflicts == conflictsCounter[i] && maxWeight < E[i].w)) && 
-                !isBridge(n, EnotRemoved, E[i])) {
+                 (maxConflicts == conflictsCounter[i] && maxWeight < E[i].w))) {
             maxConflicts = conflictsCounter[i];
             maxWeight = E[i].w;
             result = i;
@@ -418,8 +408,18 @@ unsigned int searchEdgeToInsert (unsigned int n, vector <Edge> E, vector <Confli
     return result;
 }
 
+bool isEdgeFixed (vector <Edge> fixedEdges, Edge e) {
+    for (vector <Edge>::iterator it = fixedEdges.begin(); it != fixedEdges.end(); it++) {
+        if (areEdgesExtremesEquals(e, (*it))) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 double fixSolution (vector <Edge> * primalSolution, unsigned int n, vector <Edge> E, 
-        vector <ConflictingPair> S) {
+        vector <ConflictingPair> S, vector <Edge> fixedEdges) {
     double primalBoundValue = 0.0;
     bool flag = false;
     vector <bool> isInPrimalSolution (E.size(), false), isRemoved (E.size(), false), 
@@ -435,7 +435,7 @@ double fixSolution (vector <Edge> * primalSolution, unsigned int n, vector <Edge
             }
         }
 
-        isRemovable[i] = !isBridge(n, E, E[i]);
+        isRemovable[i] = !isEdgeFixed(fixedEdges, E[i]);
     }
 
     while (!isFeasible(n, S, (*primalSolution)) && !flag) {
@@ -544,7 +544,7 @@ bool relaxLag1 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
     }
 
     primalSolution = vector <Edge> (dualSolution);
-    primalBoundValue = fixSolution(&primalSolution, n, E, S);
+    primalBoundValue = fixSolution(&primalSolution, n, E, S, fixedEdges);
 
     if (isFeasible(n, S, primalSolution) && (*bestPrimalBoundValue) > primalBoundValue) {
         (*bestPrimalBoundValue) = primalBoundValue;
@@ -617,7 +617,7 @@ bool relaxLag1 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
 
         /* Obtaining a feasible primal solution from a (possibly unfeasible) dual solution */
         primalSolution = vector <Edge> (dualSolution);
-        primalBoundValue = fixSolution(&primalSolution, n, E, S);
+        primalBoundValue = fixSolution(&primalSolution, n, E, S, fixedEdges);
 
         if (isFeasible(n, S, primalSolution) && (*bestPrimalBoundValue) > primalBoundValue) {
             (*bestPrimalBoundValue) = primalBoundValue;
@@ -681,7 +681,7 @@ bool relaxLag2 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
     }
 
     primalSolution = vector <Edge> (dualSolution);
-    primalBoundValue = fixSolution(&primalSolution, n, E, S);
+    primalBoundValue = fixSolution(&primalSolution, n, E, S, fixedEdges);
 
     if (isFeasible(n, S, primalSolution) && (*bestPrimalBoundValue) > primalBoundValue) {
         (*bestPrimalBoundValue) = primalBoundValue;
@@ -819,7 +819,7 @@ bool relaxLag2 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
 
         /* Obtaining a feasible primal solution from a (possibly unfeasible) dual solution */
         primalSolution = vector <Edge> (dualSolution);
-        primalBoundValue = fixSolution(&primalSolution, n, E, S);
+        primalBoundValue = fixSolution(&primalSolution, n, E, S, fixedEdges);
 
         if (isFeasible(n, S, primalSolution) && (*bestPrimalBoundValue) > primalBoundValue) {
             (*bestPrimalBoundValue) = primalBoundValue;
