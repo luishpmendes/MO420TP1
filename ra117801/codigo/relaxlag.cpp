@@ -982,6 +982,16 @@ vector <Edge> getBridges (vector <list < pair <unsigned int, double> > > adj) {
     return result;
 }
 
+bool isConflictingWithSomeEdge (vector <ConflictingPair> S, Edge e) {
+    for (vector <ConflictingPair>::iterator it = S.begin(); it != S.end(); it++) {
+        if (areEdgesExtremesEquals(e, it->e) || areEdgesExtremesEquals(e, it->f)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 void preProcessingPhase1 (unsigned int n, vector <Edge> * E, vector <ConflictingPair> * S, 
         vector <Edge> * fixedEdges) {
     bool flag = false;
