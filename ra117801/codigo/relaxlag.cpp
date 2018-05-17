@@ -520,8 +520,9 @@ void writeOutput (int iteration, chrono::high_resolution_clock::time_point tBegi
 bool relaxLag1 (double * bestDualBoundValue, int * bestDualBoundIteration, int * totalIterations, 
         double * bestPrimalBoundValue, int * bestPrimalBoundIteration, 
         vector <Edge> * bestPrimalSolution, unsigned int n, vector <Edge> E, 
-        vector <ConflictingPair> S, chrono::high_resolution_clock::time_point tBegin, 
-        unsigned int timeLimit, double pi, unsigned int N, double minPi) {
+        vector <ConflictingPair> S, vector <Edge> fixedEdges, 
+        chrono::high_resolution_clock::time_point tBegin, unsigned int timeLimit, double pi, 
+        unsigned int N, double minPi) {
     vector <double> u;
     unsigned int iterationsWithoutImprovment;
     double dualBoundValue, primalBoundValue;
@@ -653,8 +654,9 @@ bool relaxLag1 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
 bool relaxLag2 (double * bestDualBoundValue, int * bestDualBoundIteration, int * totalIterations, 
         double * bestPrimalBoundValue, int * bestPrimalBoundIteration, 
         vector <Edge> * bestPrimalSolution, unsigned int n, vector <Edge> E, 
-        vector <ConflictingPair> S, chrono :: high_resolution_clock :: time_point tBegin, 
-        unsigned int timeLimit, double pi, unsigned int N, double minPi) {
+        vector <ConflictingPair> S, vector <Edge> fixedEdges, 
+        chrono::high_resolution_clock::time_point tBegin, unsigned int timeLimit, double pi, 
+        unsigned int N, double minPi) {
     vector < vector <ConflictingPair> > Se;
     unsigned int eStarIndex;
     vector <ConflictingPair> SminusSeStar;
@@ -1233,14 +1235,14 @@ int main (int argc, char * argv[]) {
     if (k == 1) {
         if (!relaxLag1(&bestDualBoundValue, &bestDualBoundIteration, &totalIterations, 
                     &bestPrimalBoundValue, &bestPrimalBoundIteration, &bestPrimalSolution, 
-                    n, E, S, tBegin, timeLimit, pi, N, minPi)) {
+                    n, E, S, fixedEdges, tBegin, timeLimit, pi, N, minPi)) {
             cerr << "Error while executing first Lagrangian Relaxation!" << endl;
             return 1;
         }
     } else {
         if (!relaxLag2(&bestDualBoundValue, &bestDualBoundIteration, &totalIterations, 
                     &bestPrimalBoundValue, &bestPrimalBoundIteration, &bestPrimalSolution, 
-                    n, E, S, tBegin, timeLimit, pi, N, minPi)) {
+                    n, E, S, fixedEdges, tBegin, timeLimit, pi, N, minPi)) {
             cerr << "Error while executing second Lagrangian Relaxation!" << endl;
             return 1;
         }
