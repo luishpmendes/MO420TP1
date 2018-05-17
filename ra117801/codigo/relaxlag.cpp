@@ -528,12 +528,6 @@ bool relaxLag1 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
     double dualBoundValue, primalBoundValue;
     vector <Edge> dualSolution, primalSolution;
 
-    (*bestDualBoundValue) = -INFINITE;
-    (*bestDualBoundIteration) = -1;
-    (*totalIterations) = 0;
-    (*bestPrimalBoundValue) = INFINITE;
-    (*bestPrimalBoundIteration) = -1;
-
     /* sort the edges of E into nondecreasing order by weight w */
     sort(E.begin(), E.end(), comparator);
 
@@ -664,12 +658,6 @@ bool relaxLag2 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
     vector <double> u;
     unsigned int iterationsWithoutImprovment;
     double dualBoundValue, primalBoundValue;
-
-    (*bestDualBoundValue) = -INFINITE;
-    (*bestDualBoundIteration) = -1;
-    (*totalIterations) = 0;
-    (*bestPrimalBoundValue) = INFINITE;
-    (*bestPrimalBoundIteration) = -1;
 
     /* sort the edges of E into nondecreasing order by weight w */
     sort(E.begin(), E.end(), comparator);
@@ -1225,26 +1213,34 @@ int main (int argc, char * argv[]) {
         cerr << "Error while reading input!" << endl;
     }
 
-    vector <Edge> fixedEdges;
-    preProcessing (n, &E, &S, &fixedEdges);
-
     double bestDualBoundValue, bestPrimalBoundValue;
     int bestDualBoundIteration, totalIterations, bestPrimalBoundIteration;
     vector <Edge> bestPrimalSolution;
 
-    if (k == 1) {
-        if (!relaxLag1(&bestDualBoundValue, &bestDualBoundIteration, &totalIterations, 
-                    &bestPrimalBoundValue, &bestPrimalBoundIteration, &bestPrimalSolution, 
-                    n, E, S, fixedEdges, tBegin, timeLimit, pi, N, minPi)) {
-            cerr << "Error while executing first Lagrangian Relaxation!" << endl;
-            return 1;
-        }
-    } else {
-        if (!relaxLag2(&bestDualBoundValue, &bestDualBoundIteration, &totalIterations, 
-                    &bestPrimalBoundValue, &bestPrimalBoundIteration, &bestPrimalSolution, 
-                    n, E, S, fixedEdges, tBegin, timeLimit, pi, N, minPi)) {
-            cerr << "Error while executing second Lagrangian Relaxation!" << endl;
-            return 1;
+    bestDualBoundValue = -INFINITE;
+    bestDualBoundIteration = -1;
+    totalIterations = 0;
+    bestPrimalBoundValue = INFINITE;
+    bestPrimalBoundIteration = -1;
+
+    vector <Edge> fixedEdges;
+    preProcessing (n, &E, &S, &fixedEdges);
+
+    if (isConnected(n, E)) {
+        if (k == 1) {
+            if (!relaxLag1(&bestDualBoundValue, &bestDualBoundIteration, &totalIterations, 
+                        &bestPrimalBoundValue, &bestPrimalBoundIteration, &bestPrimalSolution, 
+                        n, E, S, fixedEdges, tBegin, timeLimit, pi, N, minPi)) {
+                cerr << "Error while executing first Lagrangian Relaxation!" << endl;
+                return 1;
+            }
+        } else {
+            if (!relaxLag2(&bestDualBoundValue, &bestDualBoundIteration, &totalIterations, 
+                        &bestPrimalBoundValue, &bestPrimalBoundIteration, &bestPrimalSolution, 
+                        n, E, S, fixedEdges, tBegin, timeLimit, pi, N, minPi)) {
+                cerr << "Error while executing second Lagrangian Relaxation!" << endl;
+                return 1;
+            }
         }
     }
 
