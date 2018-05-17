@@ -992,6 +992,17 @@ bool isConflictingWithSomeEdge (vector <ConflictingPair> S, Edge e) {
     return false;
 }
 
+bool areEdgesConflicting (vector <ConflictingPair> S, Edge e, Edge f) {
+    for (vector <ConflictingPair>::iterator it = S.begin(); it != S.end(); it++) {
+        if ((areEdgesExtremesEquals(e, it->e) && areEdgesExtremesEquals(f, it->f)) || 
+                    (areEdgesExtremesEquals(e, it->f) && areEdgesExtremesEquals(f, it->e))) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 void preProcessingPhase1 (unsigned int n, vector <Edge> * E, vector <ConflictingPair> * S, 
         vector <Edge> * fixedEdges) {
     bool flag = false;
