@@ -1120,7 +1120,66 @@ bool preProcessingPhase2 (unsigned int n, vector <Edge> * E, vector <Conflicting
 bool preProcessingPhase3 (unsigned int n, vector <Edge> * E, vector <ConflictingPair> * S, 
         vector <Edge> * fixedEdges) {
     bool result = false;
-    /* TODO */
+
+    /* For each pair of edges (e, f) */
+    /* that conflict with some edge but do not conflict with each other */
+    for (vector <Edge>::iterator it = (*E).begin(); it != (*E).end(); it++) {
+        Edge e = (*it);
+
+        if (isConflictingWithSomeEdge((*S), e)) {
+            for (vector <Edge>::iterator it2 = it + 1; it2 != (*E).end(); it2++) {
+                Edge f = (*it2);
+
+                if (isConflictingWithSomeEdge((*S), f) && !areEdgesConflicting((*S), e, f)) {
+                    /* Create a copy of the graph */
+                    vector <Edge> Eprime ((*E));
+
+                    /* Create a copy of the conflicting pairs */
+                    vector <ConflictingPair> Sprime ((*S));
+
+                    /* Create a copy of the fixed edges */
+                    vector <Edge> fixedEdgesPrime ((*fixedEdges));
+
+                    /* Fix edges e and f in the copied instance */
+                    fixedEdgesPrime.push_back(e);
+                    fixedEdgesPrime.push_back(f);
+
+                    /* Removes from the copied instance the edges conflicting with e ou with f */
+                    for (vector <ConflictingPair>::iterator it3 = Sprime.begin(); 
+                            it3 != Sprime.end();) {
+                        if (areEdgesExtremesEquals(e, it3->e) || 
+                                areEdgesExtremesEquals(f, it3->e)) {
+                            removeEdge(&Eprime, it3->e);
+                            it3 = Sprime.erase(it3);
+                        } else if (areEdgesExtremesEquals(e, it3->f) || 
+                                areEdgesExtremesEquals(f, it3->f)) {
+                            removeEdge(&Eprime, it3->f);
+                            it3 = Sprime.erase(it3);
+                        } else {
+                            it3++;
+                        }
+                    }
+
+                    /* Apply pre-processing phase 1 in the copied instance */
+                    /* in order to fix the new bridges */
+                    preProcessingPhase1(n, &Eprime, &Sprime, &fixedEdgesPrime);
+
+                    /* If the copied graph becomes disconnected */
+                    if (!isConnected(n, Eprime)) {
+                        /* Include new conflicting pair {e, f} */
+                        ConflictingPair p;
+                        p.e = e;
+                        p.f = f;
+                        (*S).push_back(p);
+
+                        /* Update return value */
+                        result = true;
+                    }
+                }
+            }
+        }
+    }
+
     return result;
 }
 
