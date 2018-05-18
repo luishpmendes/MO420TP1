@@ -6,6 +6,7 @@
 #include <iomanip>
 #include <iostream>
 #include <list>
+#include <set>
 #include <utility>
 #include <vector>
 
@@ -89,40 +90,6 @@ void SETSunion (Sets * S, unsigned int x, unsigned int y) {
     SETSlink (S, SETSfind (S, x), SETSfind (S, y));
 }
 
-bool comparator (Edge a, Edge b) {
-    return (a.w < b.w);
-}
-
-double kruskal (vector <Edge> * A, unsigned int n, vector <Edge> E) {
-    double result = 0.0;
-    (*A) = vector <Edge> (); /* A ← ∅ */
-    Sets S;
-
-    SETSinit (&S, n);
-
-    /* For each vertex v ∈ V */
-    for (unsigned int v = 0; v < n; v++) {
-        SETSmake (&S, v);
-    }
-
-    /* Sort the edges of E into nondecreasing order by weight w */
-    sort(E.begin(), E.end(), comparator);
-
-    /* For each edge (u, v) ∈ E, taken in nondecreasing order by weight */
-    for (vector <Edge>::iterator it = E.begin(); it != E.end(); it++) {
-        Edge e = (*it);
-        if (SETSfind (&S, e.u) != SETSfind (&S, e.v)) {
-            (*A).push_back(e);
-            result += e.w;
-            SETSunion (&S, e.u, e.v);
-        }
-    }
-
-    SETSdestroy (&S);
-
-    return result;
-}
-
 Sets connectedComponents (unsigned int n, vector <Edge> E) {
     Sets S;
 
@@ -170,16 +137,96 @@ bool isConnected (unsigned int n, vector <Edge> E) {
     return result;
 }
 
-bool readParameters (unsigned int k, unsigned int * timeLimit, double * pi, unsigned int * N, 
-        double * minPi) {
+bool edgeComparator (Edge e, Edge f) {
+    if (e.u == f.u) {
+        return e.v < f.v;
+    }
+    return e.u < f.u;
+}
+
+bool edgeWeightComparator (Edge a, Edge b) {
+    return (a.w < b.w);
+}
+
+bool conflictingPairComparator (ConflictingPair a, ConflictingPair b) {
+    if (a.e.u == b.e.u) {
+        if (a.e.v == b.e.v) {
+            if (a.f.u == b.f.u) {
+                return a.f.v < b.f.v;
+            }
+
+            return a.f.u < b.f.u;
+        }
+
+        return a.e.v < b.e.v;
+    }
+
+    return a.e.u < b.e.u;
+}
+
+double kruskal (vector <Edge> * A, unsigned int n, vector <Edge> E) {
+    double result = 0.0;
+    (*A) = vector <Edge> (); /* A ← ∅ */
+    Sets S;
+
+    SETSinit (&S, n);
+
+    /* For each vertex v ∈ V */
+    for (unsigned int v = 0; v < n; v++) {
+        SETSmake (&S, v);
+    }
+
+    /* Sort the edges of E into nondecreasing order by weight w */
+    sort(E.begin(), E.end(), edgeWeightComparator);
+
+    /* For each edge (u, v) ∈ E, taken in nondecreasing order by weight */
+    for (vector <Edge>::iterator it = E.begin(); it != E.end(); it++) {
+        Edge e = (*it);
+        if (SETSfind (&S, e.u) != SETSfind (&S, e.v)) {
+            (*A).push_back(e);
+            result += e.w;
+            SETSunion (&S, e.u, e.v);
+        }
+    }
+
+    SETSdestroy (&S);
+
+    return result;
+}
+
+bool areEdgesExtremesEquals (Edge e, Edge f) {
+    return (minmax(e.u, e.v) == minmax(f.u, f.v));
+}
+
+void removeEdge (vector <Edge> * E, Edge e) {
+    vector <Edge>::iterator it = (*E).begin();
+
+    while (it != (*E).end() && !areEdgesExtremesEquals((*it), e)) {
+        it++;
+    }
+
+    if (it != (*E).end()) {
+        (*E).erase(it);
+    }
+}
+
+bool readParameters (unsigned int k, unsigned int * totalTimeLimit, 
+        unsigned int * preProcessingTimeLimit, unsigned int * fixSolutionTimeLimit, double * pi, 
+        unsigned int * N, double * minPi) {
     ifstream parameterFileStream(k == 1 ? "param1" : "param2", ifstream::in);
 
     if (!parameterFileStream.is_open()) {
         return false;
     }
 
-    /* Time limit in seconds */
-    parameterFileStream >> (*timeLimit);
+    /* Total time limit in seconds */
+    parameterFileStream >> (*totalTimeLimit);
+
+    /* Pre-processing time limit in seconds */
+    parameterFileStream >> (*preProcessingTimeLimit);
+
+    /* Fix solution time limit in seconds */
+    parameterFileStream >> (*fixSolutionTimeLimit);
 
     /* π */
     parameterFileStream >> (*pi);
@@ -193,11 +240,7 @@ bool readParameters (unsigned int k, unsigned int * timeLimit, double * pi, unsi
     return true;
 }
 
-bool areEdgesExtremesEquals (Edge e, Edge f) {
-    return (minmax(e.u, e.v) == minmax(f.u, f.v));
-}
-
-bool readInput (unsigned int * n, vector <Edge> * E, vector <ConflictingPair> * S, 
+bool readInput (unsigned int * n, vector <Edge> * E, vector <ConflictingPair> * S,
         char * inputFilePath) {
     ifstream inputFileStream(inputFilePath, ifstream::in);
 
@@ -258,12 +301,20 @@ vector <double> initialLagrangeMultipliers (int m) {
     return result;
 }
 
-bool termination (chrono::high_resolution_clock::time_point tBegin, unsigned int timeLimit, 
-        double bestDualBoundValue, double bestPrimalBoundValue, double pi, double minPi) {
+bool timeLimitExceeded (chrono::high_resolution_clock::time_point tBegin, unsigned int timeLimit) {
     chrono::high_resolution_clock::time_point tCurrent = chrono::high_resolution_clock::now();
     chrono::seconds elapsedTime = chrono::duration_cast <chrono::seconds> (tCurrent - tBegin);
 
     if ((unsigned int) elapsedTime.count() >= timeLimit) {
+        return true;
+    }
+
+    return false;
+}
+
+bool termination (chrono::high_resolution_clock::time_point tBegin, unsigned int totalTimeLimit, 
+        double bestDualBoundValue, double bestPrimalBoundValue, double pi, double minPi) {
+    if (timeLimitExceeded(tBegin, totalTimeLimit)) {
         return true;
     }
 
@@ -309,199 +360,151 @@ bool isFeasible (unsigned int n, vector <ConflictingPair> S, vector <Edge> solut
     return true;
 }
 
-void removeEdge (vector <Edge> * E, Edge e) {
-    vector <Edge>::iterator it = (*E).begin();
-    while (it != (*E).end() && !areEdgesExtremesEquals((*it), e)) {
-        it++;
-    }
-    if (it != (*E).end()) {
-        (*E).erase(it);
-    }
-}
+bool searchEdgeToRemove (Edge * edgeToRemove, unsigned int n, vector <Edge> E, 
+        vector <ConflictingPair> S, set <Edge, bool (*) (Edge, Edge)> fixedEdges, 
+        vector <Edge> primalSolution) {
+    bool result = false;
+    bool (*edgeComparatorPointer) (Edge, Edge) = edgeComparator;
+    set <Edge, bool (*) (Edge, Edge)> removableEdges (edgeComparatorPointer);
+    vector <ConflictingPair> Sative;
 
-unsigned int searchEdgeToRemove (unsigned int n, vector <Edge> E, vector <ConflictingPair> S, 
-        vector <bool> isInPrimalSolution, vector <bool> isRemoved, vector <bool> isRemovable) {
-    int result = E.size();
-    vector <Edge> EnotRemoved;
-    vector <unsigned int> conflictsCounter (E.size(), 0);
-    unsigned int maxConflicts = 0, maxWeight = 0;
-
-    for (unsigned int i = 0; i < E.size(); i++) {
-        if (!isRemoved[i]) {
-            EnotRemoved.push_back(E[i]);
-        }
-    }
-
-    for (vector <ConflictingPair>::iterator it = S.begin(); it != S.end(); it++) {
-        unsigned int counter = 0;
-        for (unsigned int i = 0; i < E.size(); i++) {
-            if (isInPrimalSolution[i]) {
-                if (areEdgesExtremesEquals (it->e, E[i]) || areEdgesExtremesEquals(it->f, E[i])) {
-                    counter++;
-                }
-
-                if (counter >= 2) {
-                    conflictsCounter[i]++;
-                    break;
-                }
-            }
-        }
-    }
-
-    for (unsigned int i = 0; i < E.size(); i++) {
-        if (isInPrimalSolution[i] && isRemovable[i] && conflictsCounter[i] > 0 && 
-                (maxConflicts < conflictsCounter[i] || 
-                 (maxConflicts == conflictsCounter[i] && maxWeight < E[i].w))) {
-            maxConflicts = conflictsCounter[i];
-            maxWeight = E[i].w;
-            result = i;
-        }
-    }
-
-    return result;
-}
-
-unsigned int searchEdgeToInsert (unsigned int n, vector <Edge> E, vector <ConflictingPair> S, 
-        vector <bool> isInPrimalSolution, vector <bool> isRemoved) {
-    unsigned int result = E.size();
-    vector <Edge> primalSolution;
-    Sets components;
-
-    for (unsigned int i = 0; i < E.size(); i++) {
-        if (isInPrimalSolution[i]) {
-            primalSolution.push_back(E[i]);
-        }
-    }
-
-    components = connectedComponents(n, primalSolution);
-
-    /* for each edge (u, v) ∈ E, taken in nondecreasing order by weight */
-    for (unsigned int i = 0; i < E.size(); i++) {
-        if (!isRemoved[i]) {
-            /* Checking if the edge connects the solution */
-            if (!sameComponent(components, E[i].u, E[i].v)) {
-                /* Checking if the edge conflicts if another edge in solution */
-                bool conflict = false;
-
-                for (vector <ConflictingPair>::iterator it = S.begin(); 
-                        it != S.end() && !conflict; it++) {
-                    if (areEdgesExtremesEquals(it->e, E[i]) || 
-                            areEdgesExtremesEquals(it->f, E[i])) {
-                        for (vector <Edge>::iterator it2 = primalSolution.begin(); 
-                                it2 != primalSolution.end(); it2++) {
-                            if (areEdgesExtremesEquals(it->e, (*it2)) || 
-                                    areEdgesExtremesEquals(it->f, (*it2))) {
-                                conflict = true;
-                            }
-                        }
+    for (vector <Edge>::iterator it = primalSolution.begin(); it != primalSolution.end(); it++) {
+        Edge e = (*it);
+        for (vector <Edge>::iterator it2 = it + 1; it2 != primalSolution.end(); it2++) {
+            Edge f = (*it2);
+            for (vector <ConflictingPair>::iterator it3 = S.begin(); it3 != S.end(); it3++) {
+                if ((areEdgesExtremesEquals(e, it3->e) && areEdgesExtremesEquals(f, it3->f)) || 
+                        (areEdgesExtremesEquals(e, it3->f) && areEdgesExtremesEquals(f, it3->e))) {
+                    if (fixedEdges.find(e) == fixedEdges.end()) {
+                        removableEdges.insert(e);
                     }
-                }
-
-                if (!conflict) {
-                    result = i;
-                    break;
+                    if (fixedEdges.find(f) == fixedEdges.end()) {
+                        removableEdges.insert(f);
+                    }
+                    Sative.push_back((*it3));
                 }
             }
+        }
+    }
+
+    unsigned int maxConflictsCounter = 0;
+    double maxWeight = -INFINITE;
+
+    for (set <Edge, bool (*) (Edge, Edge)>::iterator it = removableEdges.begin(); 
+            it != removableEdges.end(); it++) {
+        Edge e = (*it);
+        unsigned int conflictsCounter = 0;
+
+        for (vector <ConflictingPair>::iterator it2 = Sative.begin(); it2 != Sative.end(); 
+                it2++) {
+            if (areEdgesExtremesEquals(e, it2->e) || areEdgesExtremesEquals(e, it2->f)) {
+                conflictsCounter++;
+            }
+        }
+
+        if (maxConflictsCounter < conflictsCounter || 
+                (maxConflictsCounter == conflictsCounter && maxWeight < e.w)) {
+            maxConflictsCounter = conflictsCounter;
+            maxWeight = e.w;
+            (*edgeToRemove) = e;
+            result = true;
         }
     }
 
     return result;
 }
 
-bool isEdgeFixed (vector <Edge> fixedEdges, Edge e) {
-    for (vector <Edge>::iterator it = fixedEdges.begin(); it != fixedEdges.end(); it++) {
-        if (areEdgesExtremesEquals(e, (*it))) {
-            return true;
+bool searchEdgeToInsert (Edge * edgeToInsert, unsigned int n, vector <Edge> E, 
+        vector <ConflictingPair> S, vector <Edge> primalSolution, 
+        set <Edge, bool (*) (Edge, Edge)> removedEdges) {
+    bool result = false;
+    bool (*edgeComparatorPointer) (Edge, Edge) = edgeComparator;
+    set <Edge, bool (*) (Edge, Edge)> insertableEdges (E.begin(), E.end(), edgeComparatorPointer);
+
+    for (set <Edge, bool (*) (Edge, Edge)>::iterator it = removedEdges.begin(); 
+            it != removedEdges.end(); it++) {
+        Edge e = (*it);
+
+        insertableEdges.erase(e);
+    }
+
+    for (vector <Edge>::iterator it = primalSolution.begin(); it != primalSolution.end(); it++) {
+        Edge e = (*it);
+
+        insertableEdges.erase(e);
+
+        for (vector <ConflictingPair>::iterator it2 = S.begin(); it2 != S.end(); it2++) {
+            if (areEdgesExtremesEquals(e, it2->e)) {
+                insertableEdges.erase(it2->f);
+            } else if (areEdgesExtremesEquals(e, it2->f)) {
+                insertableEdges.erase(it2->e);
+            }
         }
     }
 
-    return false;
+    if (insertableEdges.size() > 0) {
+        Sets components = connectedComponents(n, primalSolution);
+        double minWeight = INFINITE;
+
+        for (set <Edge, bool (*) (Edge, Edge)>::iterator it = insertableEdges.begin(); 
+                it != insertableEdges.end(); it++) {
+            Edge e = (*it);
+
+            if (!sameComponent(components, e.u, e.v) && minWeight > e.w) {
+                minWeight = e.w;
+                (*edgeToInsert) = e;
+                result = true;
+            }
+        }
+    }
+
+    return result;
 }
 
 double fixSolution (vector <Edge> * primalSolution, unsigned int n, vector <Edge> E, 
-        vector <ConflictingPair> S, vector <Edge> fixedEdges) {
+        vector <ConflictingPair> S, set <Edge, bool (*) (Edge, Edge)> fixedEdges, 
+        unsigned int fixSolutionTimeLimit) {
+    chrono::high_resolution_clock::time_point tBeginFixSolution = 
+        chrono::high_resolution_clock::now();
     double primalBoundValue = 0.0;
-    bool flag = false;
-    vector <bool> isInPrimalSolution (E.size(), false), isRemoved (E.size(), false), 
-           isRemovable (E.size(), true);
 
-    /* Fixing the weight of solution's edges */
-    for (unsigned int i = 0; i < E.size(); i++) {
-        for (vector <Edge>::iterator it = (*primalSolution).begin(); 
-                it != (*primalSolution).end(); it++) {
-            if (areEdgesExtremesEquals(E[i], (*it))) {
-                it->w = E[i].w;
-                primalBoundValue += E[i].w;
+    for (vector <Edge>::iterator it = (*primalSolution).begin(); it != (*primalSolution).end(); 
+            it++) {
+        for (vector <Edge>::iterator it2 = E.begin(); it2 != E.end(); it2++) {
+            if (areEdgesExtremesEquals((*it), (*it2))) {
+                it->w = it2->w;
+                primalBoundValue += it->w;
             }
         }
-
-        isRemovable[i] = !isEdgeFixed(fixedEdges, E[i]);
     }
 
-    while (!isFeasible(n, S, (*primalSolution)) && !flag) {
-        unsigned int edgeToRemoveIndex;
+    Edge edgeToRemove;
+    bool (*edgeComparatorPointer) (Edge, Edge) = edgeComparator;
+    set <Edge, bool (*) (Edge, Edge)> removedEdges (edgeComparatorPointer);
 
-        /* Converts the vector <Edge> codification into the vector <bool> codification */
-        for (unsigned int i = 0; i < E.size(); i++) {
-            for (vector <Edge>::iterator it = (*primalSolution).begin(); 
-                    it != (*primalSolution).end(); it++) {
-                if (areEdgesExtremesEquals(E[i], (*it))) {
-                    isInPrimalSolution[i] = true;
-                }
-            }
-        }
+    while (!timeLimitExceeded(tBeginFixSolution, fixSolutionTimeLimit) && 
+            searchEdgeToRemove (&edgeToRemove, n, E, S, fixedEdges, (*primalSolution))) {
+        Edge edgeToInsert;
 
-        /* Search for a conflicting edge to remove */
-        edgeToRemoveIndex = searchEdgeToRemove(n, E, S, isInPrimalSolution, isRemoved, 
-                isRemovable);
+        primalBoundValue -= edgeToRemove.w;
+        removeEdge(primalSolution, edgeToRemove);
+        removedEdges.insert(edgeToRemove);
 
-        /* If none found */
-        if (edgeToRemoveIndex >= E.size()) {
-            /* Set flag to stop loop */
-            flag = true;
+        if (searchEdgeToInsert (&edgeToInsert, n, E, S, (*primalSolution), removedEdges)) {
+            primalBoundValue += edgeToInsert.w;
+            (*primalSolution).push_back(edgeToInsert);
         } else {
-            unsigned int edgeToInsertIndex;
+            primalBoundValue += edgeToRemove.w;
+            (*primalSolution).push_back(edgeToRemove);
 
-            /* Remove edge from solution */
-            isInPrimalSolution[edgeToRemoveIndex] = false;
-
-            /* Remove edge from graph */
-            isRemoved[edgeToRemoveIndex] = true;
-
-            /* Search for a non-conflicting edge that re-connects the solution */
-            edgeToInsertIndex = searchEdgeToInsert(n, E, S, isInPrimalSolution, isRemoved);
-
-            /* If none found */
-            if (edgeToInsertIndex >= E.size()) {
-                /* Re-add edge to solution */
-                isInPrimalSolution[edgeToRemoveIndex] = true;
-
-                /* Re-add edge to graph */
-                isRemoved[edgeToRemoveIndex] = false;
-
-                /* Sets edge as non removable */
-                isRemovable[edgeToRemoveIndex] = false;
-            } else {
-                /* Add edge to solution */
-                isInPrimalSolution[edgeToInsertIndex] = true;
-            }
-        }
-
-        /* Converts the vector <bool> codification into the vector <Edge> codification */
-        (*primalSolution) = vector <Edge> ();
-        primalBoundValue = 0.0;
-        for (unsigned int i = 0; i < E.size(); i++) {
-            if (isInPrimalSolution[i]) {
-                (*primalSolution).push_back(E[i]);
-                primalBoundValue += E[i].w;
-            }
+            break;
         }
     }
 
     return primalBoundValue;
 }
 
-void writeOutput (int iteration, chrono::high_resolution_clock::time_point tBegin, 
+void writeOutput (int iteration, chrono::high_resolution_clock::time_point tBegin,
         double dualBoundValue, double primalBoundValue) {
     chrono::high_resolution_clock::time_point tCurrent = chrono::high_resolution_clock::now();
     chrono::seconds elapsedTime = chrono::duration_cast <chrono::seconds> (tCurrent - tBegin);
@@ -517,19 +520,76 @@ void writeOutput (int iteration, chrono::high_resolution_clock::time_point tBegi
     }
 }
 
+double constructiveHeuristic (vector <Edge> * primalSolution, unsigned int n, vector <Edge> E, 
+        vector <ConflictingPair> S) {
+    bool (*edgeComparatorPointer) (Edge, Edge) = edgeComparator;
+    set <Edge, bool (*) (Edge, Edge)> conflictingEdges (edgeComparatorPointer);
+
+    for (vector <ConflictingPair>::iterator it = S.begin(); it != S.end(); it++) {
+        conflictingEdges.insert(it->e);
+        conflictingEdges.insert(it->f);
+    }
+
+    /* While S = ∅ */
+    while (S.size() > 0) {
+        unsigned int maxConflictsCounter = 0;
+        Edge maxConflictingEdge;
+
+        /* In the graph G we choose an e ∈ E */
+        /* which appears in the maximum number of conflict pairs */
+        for (set <Edge>::iterator it = conflictingEdges.begin(); it != conflictingEdges.end();
+                it++) {
+            Edge e = (*it);
+            unsigned int conflictsCounter = 0;
+
+            for (vector <ConflictingPair>::iterator it2 = S.begin(); it2 != S.end(); it2++) {
+                if (areEdgesExtremesEquals(e, it2->e) || areEdgesExtremesEquals(e, it2->f)) {
+                    conflictsCounter++;
+                }
+            }
+
+            if (maxConflictsCounter < conflictsCounter) {
+                maxConflictsCounter = conflictsCounter;
+                maxConflictingEdge = (*it);
+            }
+        }
+
+        /* Delete e from G */
+        removeEdge(&E, maxConflictingEdge);
+
+        /* And delete from S all the conflict pairs containing e */
+        for (vector <ConflictingPair>::iterator it = S.begin(); it != S.end();) {
+            if (areEdgesExtremesEquals(maxConflictingEdge, it->e) ||
+                    areEdgesExtremesEquals(maxConflictingEdge, it->f)) {
+                it = S.erase(it);
+            } else {
+                it++;
+            }
+        }
+    }
+
+    /* If G is still connected */
+    if (isConnected(n, E)) {
+        /* then the cost of its minimum spanning tree is an upper bound to the MSTC */
+        return kruskal (primalSolution, n, E);
+    } else {
+        return 0;
+    }
+}
+
 bool relaxLag1 (double * bestDualBoundValue, int * bestDualBoundIteration, int * totalIterations, 
         double * bestPrimalBoundValue, int * bestPrimalBoundIteration, 
         vector <Edge> * bestPrimalSolution, unsigned int n, vector <Edge> E, 
-        vector <ConflictingPair> S, vector <Edge> fixedEdges, 
-        chrono::high_resolution_clock::time_point tBegin, unsigned int timeLimit, double pi, 
-        unsigned int N, double minPi) {
+        vector <ConflictingPair> S, set <Edge, bool (*) (Edge, Edge)> fixedEdges, 
+        chrono::high_resolution_clock::time_point tBegin, unsigned int totalTimeLimit, 
+        unsigned int fixSolutionTimeLimit, double pi, unsigned int N, double minPi) {
     vector <double> u;
     unsigned int iterationsWithoutImprovment;
     double dualBoundValue, primalBoundValue;
     vector <Edge> dualSolution, primalSolution;
 
     /* sort the edges of E into nondecreasing order by weight w */
-    sort(E.begin(), E.end(), comparator);
+    sort(E.begin(), E.end(), edgeWeightComparator);
 
     dualBoundValue = kruskal(&dualSolution, n, E);
 
@@ -538,7 +598,21 @@ bool relaxLag1 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
     }
 
     primalSolution = vector <Edge> (dualSolution);
-    primalBoundValue = fixSolution(&primalSolution, n, E, S, fixedEdges);
+
+    primalBoundValue = fixSolution(&primalSolution, n, E, S, fixedEdges, fixSolutionTimeLimit);
+
+    if (isFeasible(n, S, primalSolution) && (*bestPrimalBoundValue) > primalBoundValue) {
+        (*bestPrimalBoundValue) = primalBoundValue;
+        (*bestPrimalSolution) = primalSolution;
+    }
+
+    if (isFeasible(n, S, primalSolution)) {
+        writeOutput((*totalIterations), tBegin, dualBoundValue, primalBoundValue);
+    } else {
+        writeOutput((*totalIterations), tBegin, dualBoundValue, nan(""));
+    }
+
+    constructiveHeuristic(&primalSolution, n, E, S);
 
     if (isFeasible(n, S, primalSolution) && (*bestPrimalBoundValue) > primalBoundValue) {
         (*bestPrimalBoundValue) = primalBoundValue;
@@ -554,8 +628,8 @@ bool relaxLag1 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
     u = initialLagrangeMultipliers(S.size());
     iterationsWithoutImprovment = 0;
 
-    while (!termination(tBegin, timeLimit, (*bestDualBoundValue), (*bestPrimalBoundValue), pi, 
-                minPi)) {
+    while (!termination(tBegin, totalTimeLimit, (*bestDualBoundValue), (*bestPrimalBoundValue), 
+                pi, minPi)) {
         double stepSize;
         vector <Edge> Eu(E);
         vector <double> G(S.size(), -1.0);
@@ -563,7 +637,7 @@ bool relaxLag1 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
         /* Solving the Lagrangian problem with the current set of multipliers */
         for (unsigned int i = 0; i < S.size(); i++) {
             for (vector <Edge>::iterator it = Eu.begin(); it != Eu.end(); it++) {
-                if (areEdgesExtremesEquals((*it), S[i].e) || 
+                if (areEdgesExtremesEquals((*it), S[i].e) ||
                         areEdgesExtremesEquals((*it), S[i].f)) {
                     it->w += u[i];
                 }
@@ -594,9 +668,9 @@ bool relaxLag1 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
 
         /* Defining subgradients for the relaxed constraints, evaluated at the current solution */
         for (unsigned int i = 0; i < S.size(); i++) {
-            for (vector <Edge>::iterator it = dualSolution.begin(); it != dualSolution.end(); 
+            for (vector <Edge>::iterator it = dualSolution.begin(); it != dualSolution.end();
                     it++) {
-                if (areEdgesExtremesEquals((*it), S[i].e) || 
+                if (areEdgesExtremesEquals((*it), S[i].e) ||
                         areEdgesExtremesEquals((*it), S[i].f)) {
                     G[i] += 1.0;
                 }
@@ -609,7 +683,8 @@ bool relaxLag1 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
 
         /* Obtaining a feasible primal solution from a (possibly unfeasible) dual solution */
         primalSolution = vector <Edge> (dualSolution);
-        primalBoundValue = fixSolution(&primalSolution, n, E, S, fixedEdges);
+        primalBoundValue = fixSolution(&primalSolution, n, E, S, fixedEdges, 
+                fixSolutionTimeLimit);
 
         if (isFeasible(n, S, primalSolution) && (*bestPrimalBoundValue) > primalBoundValue) {
             (*bestPrimalBoundValue) = primalBoundValue;
@@ -648,9 +723,9 @@ bool relaxLag1 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
 bool relaxLag2 (double * bestDualBoundValue, int * bestDualBoundIteration, int * totalIterations, 
         double * bestPrimalBoundValue, int * bestPrimalBoundIteration, 
         vector <Edge> * bestPrimalSolution, unsigned int n, vector <Edge> E, 
-        vector <ConflictingPair> S, vector <Edge> fixedEdges, 
-        chrono::high_resolution_clock::time_point tBegin, unsigned int timeLimit, double pi, 
-        unsigned int N, double minPi) {
+        vector <ConflictingPair> S, set <Edge, bool (*) (Edge, Edge)> fixedEdges, 
+        chrono::high_resolution_clock::time_point tBegin, unsigned int totalTimeLimit, 
+        unsigned int fixSolutionTimeLimit, double pi, unsigned int N, double minPi) {
     vector < vector <ConflictingPair> > Se;
     unsigned int eStarIndex;
     vector <ConflictingPair> SminusSeStar;
@@ -660,7 +735,7 @@ bool relaxLag2 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
     double dualBoundValue, primalBoundValue;
 
     /* sort the edges of E into nondecreasing order by weight w */
-    sort(E.begin(), E.end(), comparator);
+    sort(E.begin(), E.end(), edgeWeightComparator);
 
     dualBoundValue = kruskal(&dualSolution, n, E);
 
@@ -669,7 +744,20 @@ bool relaxLag2 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
     }
 
     primalSolution = vector <Edge> (dualSolution);
-    primalBoundValue = fixSolution(&primalSolution, n, E, S, fixedEdges);
+    primalBoundValue = fixSolution(&primalSolution, n, E, S, fixedEdges, fixSolutionTimeLimit);
+
+    if (isFeasible(n, S, primalSolution) && (*bestPrimalBoundValue) > primalBoundValue) {
+        (*bestPrimalBoundValue) = primalBoundValue;
+        (*bestPrimalSolution) = primalSolution;
+    }
+
+    if (isFeasible(n, S, primalSolution)) {
+        writeOutput((*totalIterations), tBegin, dualBoundValue, primalBoundValue);
+    } else {
+        writeOutput((*totalIterations), tBegin, dualBoundValue, nan(""));
+    }
+
+    constructiveHeuristic(&primalSolution, n, E, S);
 
     if (isFeasible(n, S, primalSolution) && (*bestPrimalBoundValue) > primalBoundValue) {
         (*bestPrimalBoundValue) = primalBoundValue;
@@ -703,7 +791,7 @@ bool relaxLag2 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
     for (vector <ConflictingPair>::iterator it = S.begin(); it != S.end(); it++) {
         bool found = false;
 
-        for (vector <ConflictingPair>::iterator it2 = Se[eStarIndex].begin(); 
+        for (vector <ConflictingPair>::iterator it2 = Se[eStarIndex].begin();
                 it2 != Se[eStarIndex].end() && !found; it2++) {
             if (areEdgesExtremesEquals(it->e, it2->e) && areEdgesExtremesEquals(it->f, it2->f)) {
                 found = true;
@@ -719,9 +807,9 @@ bool relaxLag2 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
         if (!areEdgesExtremesEquals((*it), E[eStarIndex])) {
             bool conflictsWithEStar = false;
 
-            for (vector <ConflictingPair>::iterator it2 = Se[eStarIndex].begin(); 
+            for (vector <ConflictingPair>::iterator it2 = Se[eStarIndex].begin();
                     it2 != Se[eStarIndex].end() && !conflictsWithEStar; it2++) {
-                if (areEdgesExtremesEquals((*it), it2->e) || 
+                if (areEdgesExtremesEquals((*it), it2->e) ||
                         areEdgesExtremesEquals((*it), it2->f)) {
                     conflictsWithEStar = true;
                 }
@@ -750,8 +838,8 @@ bool relaxLag2 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
     u = initialLagrangeMultipliers(SminusSeStar.size());
     iterationsWithoutImprovment = 0;
 
-    while (!termination(tBegin, timeLimit, (*bestDualBoundValue), (*bestPrimalBoundValue), pi, 
-                minPi)) {
+    while (!termination(tBegin, totalTimeLimit, (*bestDualBoundValue), (*bestPrimalBoundValue), 
+                pi, minPi)) {
         double stepSize;
         vector <Edge> Eu(EminusEeStar);
         vector <double> G(SminusSeStar.size(), -1.0);
@@ -759,7 +847,7 @@ bool relaxLag2 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
         /* Solving the Lagrangian problem with the current set of multipliers */
         for (unsigned int i = 0; i < SminusSeStar.size(); i++) {
             for (vector <Edge>::iterator it = Eu.begin(); it != Eu.end(); it++) {
-                if (areEdgesExtremesEquals((*it), SminusSeStar[i].e) || 
+                if (areEdgesExtremesEquals((*it), SminusSeStar[i].e) ||
                         areEdgesExtremesEquals((*it), SminusSeStar[i].f)) {
                     it->w += u[i];
                 }
@@ -790,9 +878,9 @@ bool relaxLag2 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
 
         /* Defining subgradients for the relaxed constraints, evaluated at the current solution */
         for (unsigned int i = 0; i < SminusSeStar.size(); i++) {
-            for (vector <Edge>::iterator it = dualSolution.begin(); it != dualSolution.end(); 
+            for (vector <Edge>::iterator it = dualSolution.begin(); it != dualSolution.end();
                     it++) {
-                if (areEdgesExtremesEquals((*it), SminusSeStar[i].e) || 
+                if (areEdgesExtremesEquals((*it), SminusSeStar[i].e) ||
                         areEdgesExtremesEquals((*it), SminusSeStar[i].f)) {
                     G[i] += 1.0;
                 }
@@ -805,7 +893,8 @@ bool relaxLag2 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
 
         /* Obtaining a feasible primal solution from a (possibly unfeasible) dual solution */
         primalSolution = vector <Edge> (dualSolution);
-        primalBoundValue = fixSolution(&primalSolution, n, E, S, fixedEdges);
+        primalBoundValue = fixSolution(&primalSolution, n, E, S, fixedEdges, 
+                fixSolutionTimeLimit);
 
         if (isFeasible(n, S, primalSolution) && (*bestPrimalBoundValue) > primalBoundValue) {
             (*bestPrimalBoundValue) = primalBoundValue;
@@ -825,7 +914,7 @@ bool relaxLag2 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
         for (vector <double>::iterator it = G.begin(); it != G.end(); it++) {
             stepSize += (*it) * (*it);
         }
-        
+
         stepSize = (pi * ((1.05 * (*bestPrimalBoundValue)) - dualBoundValue)) / stepSize;
 
         /* Updating Lagrange multipliers */
@@ -841,8 +930,8 @@ bool relaxLag2 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
     return true;
 }
 
-bool writeResult (char * resultFilePath, double bestDualBoundValue, int bestDualBoundIteration, 
-        int totalIterations, double bestPrimalBoundValue, int bestPrimalBoundIteration, 
+bool writeResult (char * resultFilePath, double bestDualBoundValue, int bestDualBoundIteration,
+        int totalIterations, double bestPrimalBoundValue, int bestPrimalBoundIteration,
         vector <Edge> bestPrimalSolution) {
     ofstream resultFileStream(resultFilePath, ofstream::out);
 
@@ -874,7 +963,7 @@ bool writeResult (char * resultFilePath, double bestDualBoundValue, int bestDual
     /* representando a árvore geradora correspondente ao melhor limitante primal encontrado, */
     /* cada linha identificando uma aresta e = (u, v) presente na árvore, */
     /* sendo 0 ≤ u, v ≤ n − 1, no seguinte formato: u v */
-    for (vector <Edge>::iterator it = bestPrimalSolution.begin(); it != bestPrimalSolution.end(); 
+    for (vector <Edge>::iterator it = bestPrimalSolution.begin(); it != bestPrimalSolution.end();
             it++) {
         Edge e = *it;
         resultFileStream << e.u << ' ' << e.v << endl;
@@ -883,7 +972,7 @@ bool writeResult (char * resultFilePath, double bestDualBoundValue, int bestDual
     return true;
 }
 
-vector < list < pair <unsigned int, double> > > toAdjacencyList (unsigned int n, 
+vector < list < pair <unsigned int, double> > > toAdjacencyList (unsigned int n,
         vector <Edge> E) {
     vector < list < pair <unsigned int, double> > > adj (n);
 
@@ -924,13 +1013,14 @@ void removeEdgeFromAdjacencyList(vector < list < pair <unsigned int, double> > >
 
 void bridgesAux (vector <list < pair <unsigned int, double> > > adj, unsigned int * time, 
         vector <bool> * visited, vector <unsigned int> * disc, vector <unsigned int> * low, 
-        vector <unsigned int> * parent, unsigned int u, vector <Edge> * bridges) {
+        vector <unsigned int> * parent, unsigned int u, 
+        set <Edge, bool (*) (Edge, Edge)> * bridges) {
     (*visited)[u] = true;
     (*time)++;
     (*disc)[u] = (*time);
     (*low)[u] = (*time);
 
-    for (list < pair <unsigned int, double> >::iterator it = adj[u].begin(); it != adj[u].end(); 
+    for (list < pair <unsigned int, double> >::iterator it = adj[u].begin(); it != adj[u].end();
             it++) {
         unsigned int v = (*it).first;
         double w = (*it).second;
@@ -948,7 +1038,7 @@ void bridgesAux (vector <list < pair <unsigned int, double> > > adj, unsigned in
                 e.u = u;
                 e.v = v;
                 e.w = w;
-                (*bridges).push_back(e);
+                (*bridges).insert(e);
             }
         } else if (v != (*parent)[u] && (*low)[u] > (*disc)[v]) {
             (*low)[u] = (*disc)[v];
@@ -956,8 +1046,10 @@ void bridgesAux (vector <list < pair <unsigned int, double> > > adj, unsigned in
     }
 }
 
-vector <Edge> getBridges (vector <list < pair <unsigned int, double> > > adj) {
-    vector <Edge> result;
+set <Edge, bool (*) (Edge, Edge)> getBridges (
+        vector <list < pair <unsigned int, double> > > adj) {
+    bool (*edgeComparatorPointer) (Edge, Edge) = edgeComparator;
+    set <Edge, bool (*) (Edge, Edge)> result (edgeComparatorPointer);
     unsigned int time = 0;
     vector <bool> visited (adj.size(), false);
     vector <unsigned int> disc (adj.size(), 0), low (adj.size(), 0);
@@ -984,7 +1076,7 @@ bool isConflictingWithSomeEdge (vector <ConflictingPair> S, Edge e) {
 
 bool areEdgesConflicting (vector <ConflictingPair> S, Edge e, Edge f) {
     for (vector <ConflictingPair>::iterator it = S.begin(); it != S.end(); it++) {
-        if ((areEdgesExtremesEquals(e, it->e) && areEdgesExtremesEquals(f, it->f)) || 
+        if ((areEdgesExtremesEquals(e, it->e) && areEdgesExtremesEquals(f, it->f)) ||
                     (areEdgesExtremesEquals(e, it->f) && areEdgesExtremesEquals(f, it->e))) {
             return true;
         }
@@ -994,24 +1086,29 @@ bool areEdgesConflicting (vector <ConflictingPair> S, Edge e, Edge f) {
 }
 
 void preProcessingPhase1 (unsigned int n, vector <Edge> * E, vector <ConflictingPair> * S, 
-        vector <Edge> * fixedEdges) {
+        set <Edge, bool (*) (Edge, Edge)> * fixedEdges, 
+        chrono::high_resolution_clock::time_point tBeginPreProcessing, 
+        unsigned int preProcessingTimeLimit) {
     bool flag = false;
 
     vector < list < pair <unsigned int, double> > > adj = toAdjacencyList (n, (*E));
 
-    while (!flag && isConnected(n, (*E))) {
-        vector <Edge> bridges = getBridges(adj);
+    while (!timeLimitExceeded(tBeginPreProcessing, preProcessingTimeLimit) && !flag && 
+            isConnected(n, (*E))) {
+        set <Edge, bool (*) (Edge, Edge)> bridges = getBridges(adj);
 
-        for (vector <Edge>::iterator it = (*fixedEdges).begin(); it != (*fixedEdges).end(); it++) {
-            removeEdge(&bridges, (*it));
+        for (set <Edge, bool (*) (Edge, Edge)>::iterator it = (*fixedEdges).begin(); 
+                it != (*fixedEdges).end(); it++) {
+            bridges.erase((*it));
         }
 
         /* For each bridge e not yet fixed */
-        for (vector <Edge>::iterator it = bridges.begin(); it != bridges.end(); it++) {
+        for (set <Edge, bool (*) (Edge, Edge)>::iterator it = bridges.begin(); 
+                it != bridges.end(); it++) {
             Edge e = (*it);
 
             /* Add e to the fixedEdges */
-            (*fixedEdges).push_back(e);
+            (*fixedEdges).insert(e);
 
             /* For each conflicting pair containing e */
             for (vector <ConflictingPair>::iterator it2 = (*S).begin(); it2 != (*S).end();) {
@@ -1042,11 +1139,15 @@ void preProcessingPhase1 (unsigned int n, vector <Edge> * E, vector <Conflicting
 }
 
 bool preProcessingPhase2 (unsigned int n, vector <Edge> * E, vector <ConflictingPair> * S, 
-        vector <Edge> * fixedEdges) {
+        set <Edge, bool (*) (Edge, Edge)> * fixedEdges, 
+        chrono::high_resolution_clock::time_point tBeginPreProcessing, 
+        unsigned int preProcessingTimeLimit) {
     bool result = false;
 
     /* For each edge e that is conflicting with some edge */
-    for (vector <Edge>::iterator it = (*E).begin(); it != (*E).end();) {
+    for (vector <Edge>::iterator it = (*E).begin(); 
+            !timeLimitExceeded(tBeginPreProcessing, preProcessingTimeLimit) && 
+            it != (*E).end();) {
         Edge e = (*it);
 
         if (isConflictingWithSomeEdge((*S), e)) {
@@ -1057,7 +1158,7 @@ bool preProcessingPhase2 (unsigned int n, vector <Edge> * E, vector <Conflicting
             vector <ConflictingPair> Sprime ((*S));
 
             /* Create a copy of the fixed edges */
-            vector <Edge> fixedEdgesPrime ((*fixedEdges));
+            set <Edge, bool (*) (Edge, Edge)> fixedEdgesPrime ((*fixedEdges));
 
             /* Fix e in the copied instance */
             /* by removing the edges that conflict with e from the copied graph */
@@ -1078,7 +1179,8 @@ bool preProcessingPhase2 (unsigned int n, vector <Edge> * E, vector <Conflicting
 
             /* Apply pre-processing phase 1 in the copied instance */
             /* in order to fix the new bridges */
-            preProcessingPhase1(n, &Eprime, &Sprime, &fixedEdgesPrime);
+            preProcessingPhase1(n, &Eprime, &Sprime, &fixedEdgesPrime, tBeginPreProcessing, 
+                    preProcessingTimeLimit);
 
             /* If the copied graph becomes disconnected */
             if (!isConnected(n, Eprime)) {
@@ -1108,12 +1210,16 @@ bool preProcessingPhase2 (unsigned int n, vector <Edge> * E, vector <Conflicting
 }
 
 bool preProcessingPhase3 (unsigned int n, vector <Edge> * E, vector <ConflictingPair> * S, 
-        vector <Edge> * fixedEdges) {
+        set <Edge, bool (*) (Edge, Edge)> * fixedEdges, 
+        chrono::high_resolution_clock::time_point tBeginPreProcessing, 
+        unsigned int preProcessingTimeLimit) {
     bool result = false;
 
     /* For each pair of edges (e, f) */
     /* that conflict with some edge but do not conflict with each other */
-    for (vector <Edge>::iterator it = (*E).begin(); it != (*E).end(); it++) {
+    for (vector <Edge>::iterator it = (*E).begin(); 
+            !timeLimitExceeded(tBeginPreProcessing, preProcessingTimeLimit) && it != (*E).end(); 
+            it++) {
         Edge e = (*it);
 
         if (isConflictingWithSomeEdge((*S), e)) {
@@ -1128,20 +1234,20 @@ bool preProcessingPhase3 (unsigned int n, vector <Edge> * E, vector <Conflicting
                     vector <ConflictingPair> Sprime ((*S));
 
                     /* Create a copy of the fixed edges */
-                    vector <Edge> fixedEdgesPrime ((*fixedEdges));
+                    set <Edge, bool (*) (Edge, Edge)> fixedEdgesPrime ((*fixedEdges));
 
                     /* Fix edges e and f in the copied instance */
-                    fixedEdgesPrime.push_back(e);
-                    fixedEdgesPrime.push_back(f);
+                    fixedEdgesPrime.insert(e);
+                    fixedEdgesPrime.insert(f);
 
                     /* Removes from the copied instance the edges conflicting with e ou with f */
-                    for (vector <ConflictingPair>::iterator it3 = Sprime.begin(); 
+                    for (vector <ConflictingPair>::iterator it3 = Sprime.begin();
                             it3 != Sprime.end();) {
-                        if (areEdgesExtremesEquals(e, it3->e) || 
+                        if (areEdgesExtremesEquals(e, it3->e) ||
                                 areEdgesExtremesEquals(f, it3->e)) {
                             removeEdge(&Eprime, it3->e);
                             it3 = Sprime.erase(it3);
-                        } else if (areEdgesExtremesEquals(e, it3->f) || 
+                        } else if (areEdgesExtremesEquals(e, it3->f) ||
                                 areEdgesExtremesEquals(f, it3->f)) {
                             removeEdge(&Eprime, it3->f);
                             it3 = Sprime.erase(it3);
@@ -1152,7 +1258,8 @@ bool preProcessingPhase3 (unsigned int n, vector <Edge> * E, vector <Conflicting
 
                     /* Apply pre-processing phase 1 in the copied instance */
                     /* in order to fix the new bridges */
-                    preProcessingPhase1(n, &Eprime, &Sprime, &fixedEdgesPrime);
+                    preProcessingPhase1(n, &Eprime, &Sprime, &fixedEdgesPrime, 
+                            tBeginPreProcessing, preProcessingTimeLimit);
 
                     /* If the copied graph becomes disconnected */
                     if (!isConnected(n, Eprime)) {
@@ -1174,12 +1281,21 @@ bool preProcessingPhase3 (unsigned int n, vector <Edge> * E, vector <Conflicting
 }
 
 void preProcessing (unsigned int n, vector <Edge> * E, vector <ConflictingPair> * S, 
-        vector <Edge> * fixedEdges) {
+        set <Edge, bool (*) (Edge, Edge)> * fixedEdges, unsigned int preProcessingTimeLimit) {
+    chrono::high_resolution_clock::time_point tBeginPreProcessing = 
+        chrono::high_resolution_clock::now();
+
     do {
         do {
-            preProcessingPhase1(n, E, S, fixedEdges);
-        } while (isConnected(n, (*E)) && preProcessingPhase2(n, E, S, fixedEdges));
-    } while (isConnected(n, (*E)) && preProcessingPhase3(n, E, S, fixedEdges));
+            preProcessingPhase1(n, E, S, fixedEdges, tBeginPreProcessing, preProcessingTimeLimit);
+        } while (!timeLimitExceeded(tBeginPreProcessing, preProcessingTimeLimit) && 
+                isConnected(n, (*E)) && 
+                preProcessingPhase2(n, E, S, fixedEdges, tBeginPreProcessing, 
+                    preProcessingTimeLimit));
+    } while (!timeLimitExceeded(tBeginPreProcessing, preProcessingTimeLimit) && 
+            isConnected(n, (*E)) && 
+            preProcessingPhase3(n, E, S, fixedEdges, tBeginPreProcessing, 
+                preProcessingTimeLimit));
 }
 
 int main (int argc, char * argv[]) {
@@ -1197,10 +1313,11 @@ int main (int argc, char * argv[]) {
         return 1;
     }
 
-    unsigned int timeLimit, N;
+    unsigned int totalTimeLimit, preProcessingTimeLimit, fixSolutionTimeLimit, N;
     double pi, minPi;
 
-    if (!readParameters(k, &timeLimit, &pi, &N, &minPi)) {
+    if (!readParameters(k, &totalTimeLimit, &preProcessingTimeLimit, &fixSolutionTimeLimit, &pi, 
+                &N, &minPi)) {
         cerr << "Error while reading parameters!" << endl;
         return 1;
     }
@@ -1223,28 +1340,34 @@ int main (int argc, char * argv[]) {
     bestPrimalBoundValue = INFINITE;
     bestPrimalBoundIteration = -1;
 
-    vector <Edge> fixedEdges;
-    preProcessing (n, &E, &S, &fixedEdges);
+    bool (*edgeComparatorPointer) (Edge, Edge) = edgeComparator;
+    set <Edge, bool (*) (Edge, Edge)> fixedEdges (edgeComparatorPointer);
+    preProcessing (n, &E, &S, &fixedEdges, preProcessingTimeLimit);
+
+    chrono::high_resolution_clock::time_point tCurrent = chrono::high_resolution_clock::now();
+    chrono::seconds elapsedTime = chrono::duration_cast <chrono::seconds> (tCurrent - tBegin);
 
     if (isConnected(n, E)) {
         if (k == 1) {
             if (!relaxLag1(&bestDualBoundValue, &bestDualBoundIteration, &totalIterations, 
-                        &bestPrimalBoundValue, &bestPrimalBoundIteration, &bestPrimalSolution, 
-                        n, E, S, fixedEdges, tBegin, timeLimit, pi, N, minPi)) {
+                        &bestPrimalBoundValue, &bestPrimalBoundIteration, &bestPrimalSolution, n, 
+                        E, S, fixedEdges, tBegin, totalTimeLimit, fixSolutionTimeLimit, pi, N, 
+                        minPi)) {
                 cerr << "Error while executing first Lagrangian Relaxation!" << endl;
                 return 1;
             }
         } else {
             if (!relaxLag2(&bestDualBoundValue, &bestDualBoundIteration, &totalIterations, 
-                        &bestPrimalBoundValue, &bestPrimalBoundIteration, &bestPrimalSolution, 
-                        n, E, S, fixedEdges, tBegin, timeLimit, pi, N, minPi)) {
+                        &bestPrimalBoundValue, &bestPrimalBoundIteration, &bestPrimalSolution, n, 
+                        E, S, fixedEdges, tBegin, totalTimeLimit, fixSolutionTimeLimit, pi, N, 
+                        minPi)) {
                 cerr << "Error while executing second Lagrangian Relaxation!" << endl;
                 return 1;
             }
         }
     }
 
-    if (!writeResult(argv[3], bestDualBoundValue, bestDualBoundIteration, totalIterations, 
+    if (!writeResult(argv[3], bestDualBoundValue, bestDualBoundIteration, totalIterations,
                 bestPrimalBoundValue, bestPrimalBoundIteration, bestPrimalSolution)) {
         cerr << "Error while writing output!" << endl;
         return 1;
