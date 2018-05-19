@@ -117,7 +117,7 @@ void SETSunion (Sets * S, unsigned int x, unsigned int y) {
     SETSlink (S, SETSfind (S, x), SETSfind (S, y));
 }
 
-Sets connectedComponents (unsigned int n, vector <Edge> E) {
+Sets connectedComponents (unsigned int n, set <Edge, bool (*) (Edge, Edge)> E) {
     Sets S;
 
     SETSinit(&S, n);
@@ -128,8 +128,9 @@ Sets connectedComponents (unsigned int n, vector <Edge> E) {
     }
 
     /* For each edge (u, v) ∈ E */
-    for (vector <Edge>::iterator it = E.begin(); it != E.end(); it++) {
+    for (set <Edge, bool (*) (Edge, Edge)>::iterator it = E.begin(); it != E.end(); it++) {
         Edge e = (*it);
+
         if (SETSfind(&S, e.u) != SETSfind(&S, e.v)) {
             SETSunion(&S, e.u, e.v);
         }
@@ -146,7 +147,7 @@ bool sameComponent (Sets S, unsigned int u, unsigned int v) {
     return false;
 }
 
-bool isConnected (unsigned int n, vector <Edge> E) {
+bool isConnected (unsigned int n, set <Edge, bool (*) (Edge, Edge)> E) {
     bool result = true;
 
     Sets components = connectedComponents(n, E);
@@ -164,9 +165,15 @@ bool isConnected (unsigned int n, vector <Edge> E) {
     return result;
 }
 
-double kruskal (vector <Edge> * A, unsigned int n, vector <Edge> E) {
+double kruskal (set <Edge, bool (*) (Edge, Edge)> * A, unsigned int n, 
+        set <Edge, bool (*) (Edge, Edge)> E) {
     double result = 0.0;
-    (*A) = vector <Edge> (); /* A ← ∅ */
+
+    bool (*edgeComparatorPointer) (Edge, Edge) = edgeComparator;
+    (*A) = set <Edge, bool (*) (Edge, Edge)> (edgeComparatorPointer); /* A ← ∅ */
+
+    vector <Edge> Eprime (E.begin(), E.end());
+
     Sets S;
 
     SETSinit (&S, n);
@@ -177,13 +184,14 @@ double kruskal (vector <Edge> * A, unsigned int n, vector <Edge> E) {
     }
 
     /* Sort the edges of E into nondecreasing order by weight w */
-    sort(E.begin(), E.end(), edgeWeightComparator);
+    sort(Eprime.begin(), Eprime.end(), edgeWeightComparator);
 
     /* For each edge (u, v) ∈ E, taken in nondecreasing order by weight */
-    for (vector <Edge>::iterator it = E.begin(); it != E.end(); it++) {
+    for (vector <Edge>::iterator it = Eprime.begin(); it != Eprime.end(); it++) {
         Edge e = (*it);
+
         if (SETSfind (&S, e.u) != SETSfind (&S, e.v)) {
-            (*A).push_back(e);
+            (*A).insert(e);
             result += e.w;
             SETSunion (&S, e.u, e.v);
         }
@@ -240,9 +248,8 @@ bool readParameters (unsigned int k, unsigned int * totalTimeLimit,
     return true;
 }
 
-bool readInput (unsigned int * n, vector <Edge> * E, 
-        set <ConflictingPair, bool (*) (ConflictingPair, ConflictingPair)> * S, 
-        char * inputFilePath) {
+bool readInput (unsigned int * n, set <Edge, bool (*) (Edge, Edge)> * E, set <ConflictingPair, 
+        bool (*) (ConflictingPair, ConflictingPair)> * S, char * inputFilePath) {
     ifstream inputFileStream(inputFilePath, ifstream::in);
 
     if (!inputFileStream.is_open()) {
@@ -269,16 +276,35 @@ bool readInput (unsigned int * n, vector <Edge> * E,
     /* Uma linha com a quantidade de pares de arestas conflitantes (p). */
     inputFileStream >> p;
 
-    (*E) = vector <Edge> (m);
+    bool (*edgeComparatorPointer) (Edge, Edge) = edgeComparator;
+    (*E) = set <Edge, bool (*) (Edge, Edge)> (edgeComparatorPointer);
 
     bool (*conflictingPairComparatorPointer) (ConflictingPair, ConflictingPair) = 
         conflictingPairComparator;
-    (*S) = set <ConflictingPair, bool (*) (ConflictingPair, ConflictingPair)> (conflictingPairComparatorPointer);
+    (*S) = set <ConflictingPair, bool (*) (ConflictingPair, ConflictingPair)> (
+            conflictingPairComparatorPointer);
 
     /* m linhas, cada uma identificando uma aresta e = (u, v), de custo ce, sendo 0 ≤ u, */
     /* v ≤ n − 1 e 0 ≤ ce ≤ 500, no seguinte formato: u v ce */
     for (unsigned int j = 0; j < m; j++) {
-        inputFileStream >> (*E)[j].u >> (*E)[j].v >> (*E)[j].w;
+        int u, v;
+        double w;
+
+        inputFileStream >> u >> v >> w;
+
+        Edge e;
+
+        if (u < v) {
+            e.u = u;
+            e.v = v;
+        } else {
+            e.u = v;
+            e.v = u;
+        }
+
+        e.w = w;
+
+        (*E).insert(e);
     }
 
     /* p linhas, cada uma identificando um par de arestas conflitantes {e, f}, sendo */
@@ -307,14 +333,16 @@ bool readInput (unsigned int * n, vector <Edge> * E,
             f.v = u;
         }
 
-        for (vector <Edge>::iterator it = (*E).begin(); it != (*E).end(); it++) {
-            if (areEdgesExtremesEquals(e, (*it))) {
-                e.w = it->w;
-            }
+        set <Edge, bool (*) (Edge, Edge)> :: iterator it = (*E).find(e);
 
-            if (areEdgesExtremesEquals(f, (*it))) {
-                f.w = it->w;
-            }
+        if (it != (*E).end()) {
+            e.w = it->w;
+        }
+
+        it = (*E).find(f);
+
+        if (it != (*E).end()) {
+            f.w = it->w;
         }
 
         ConflictingPair cp;
@@ -372,9 +400,9 @@ bool termination (chrono::high_resolution_clock::time_point tBegin, unsigned int
     return false;
 }
 
-bool isFeasible (unsigned int n, 
-        set <ConflictingPair, bool (*) (ConflictingPair, ConflictingPair)> S, 
-        vector <Edge> solution) {
+bool isFeasible (unsigned int n, set <ConflictingPair, 
+        bool (*) (ConflictingPair, ConflictingPair)> S, 
+        set <Edge, bool (*) (Edge, Edge)> solution) {
     if (solution.size() != n - 1) {
         return false;
     }
@@ -387,23 +415,31 @@ bool isFeasible (unsigned int n,
             S.begin(); it != S.end(); it++) {
         unsigned int counter = 0;
 
-        for (vector <Edge>::iterator it2 = solution.begin(); it2 != solution.end(); it2++) {
-            if (areEdgesExtremesEquals(it->e, (*it2)) || areEdgesExtremesEquals(it->f, (*it2))) {
-                counter++;
-            }
+        set <Edge, bool (*) (Edge, Edge)>::iterator it2 = solution.find(it->e);
 
-            if (counter >= 2) {
-                return false;
-            }
+        if (it2 != solution.end()) {
+            counter++;
+        }
+
+        it2 = solution.find(it->f);
+
+        if (it2 != solution.end()) {
+            counter++;
+        }
+
+        if (counter >= 2) {
+            return false;
         }
     }
 
     return true;
 }
 
-bool searchEdgeToRemove (Edge * edgeToRemove, unsigned int n, vector <Edge> E, 
+bool searchEdgeToRemove (Edge * edgeToRemove, unsigned int n, 
+        set <Edge, bool (*) (Edge, Edge)> E, 
         set <ConflictingPair, bool (*) (ConflictingPair, ConflictingPair)> S, 
-        set <Edge, bool (*) (Edge, Edge)> fixedEdges, vector <Edge> primalSolution) {
+        set <Edge, bool (*) (Edge, Edge)> fixedEdges, 
+        set <Edge, bool (*) (Edge, Edge)> primalSolution) {
     bool result = false;
 
     bool (*edgeComparatorPointer) (Edge, Edge) = edgeComparator;
@@ -411,12 +447,15 @@ bool searchEdgeToRemove (Edge * edgeToRemove, unsigned int n, vector <Edge> E,
 
     bool (*conflictingPairComparatorPointer) (ConflictingPair, ConflictingPair) = 
         conflictingPairComparator;
-    set <ConflictingPair, bool (*) (ConflictingPair, ConflictingPair)> Sative 
-        (conflictingPairComparatorPointer);
+    set <ConflictingPair, bool (*) (ConflictingPair, ConflictingPair)> Sative (
+            conflictingPairComparatorPointer);
 
-    for (vector <Edge>::iterator it = primalSolution.begin(); it != primalSolution.end(); it++) {
+    for (set <Edge, bool (*) (Edge, Edge)>::iterator it = primalSolution.begin(); 
+            it != primalSolution.end(); it++) {
         Edge e = (*it);
-        for (vector <Edge>::iterator it2 = it + 1; it2 != primalSolution.end(); it2++) {
+
+        for (set <Edge, bool (*) (Edge, Edge)>::iterator it2 = next(it); 
+                it2 != primalSolution.end(); it2++) {
             Edge f = (*it2);
 
             ConflictingPair cp;
@@ -470,9 +509,11 @@ bool searchEdgeToRemove (Edge * edgeToRemove, unsigned int n, vector <Edge> E,
     return result;
 }
 
-bool searchEdgeToInsert (Edge * edgeToInsert, unsigned int n, vector <Edge> E, 
+bool searchEdgeToInsert (Edge * edgeToInsert, unsigned int n, 
+        set <Edge, bool (*) (Edge, Edge)> E, 
         set <ConflictingPair, bool (*) (ConflictingPair, ConflictingPair)> S, 
-        vector <Edge> primalSolution, set <Edge, bool (*) (Edge, Edge)> removedEdges) {
+        set <Edge, bool (*) (Edge, Edge)> primalSolution, 
+        set <Edge, bool (*) (Edge, Edge)> removedEdges) {
     bool result = false;
     bool (*edgeComparatorPointer) (Edge, Edge) = edgeComparator;
     set <Edge, bool (*) (Edge, Edge)> insertableEdges (E.begin(), E.end(), edgeComparatorPointer);
@@ -484,7 +525,8 @@ bool searchEdgeToInsert (Edge * edgeToInsert, unsigned int n, vector <Edge> E,
         insertableEdges.erase(e);
     }
 
-    for (vector <Edge>::iterator it = primalSolution.begin(); it != primalSolution.end(); it++) {
+    for (set <Edge, bool (*) (Edge, Edge)>::iterator it = primalSolution.begin(); 
+            it != primalSolution.end(); it++) {
         Edge e = (*it);
 
         insertableEdges.erase(e);
@@ -518,41 +560,53 @@ bool searchEdgeToInsert (Edge * edgeToInsert, unsigned int n, vector <Edge> E,
     return result;
 }
 
-double fixSolution (vector <Edge> * primalSolution, unsigned int n, vector <Edge> E, 
+double fixSolution (set <Edge, bool (*) (Edge, Edge)> * primalSolution, unsigned int n, 
+        set <Edge, bool (*) (Edge, Edge)> E, 
         set <ConflictingPair, bool (*) (ConflictingPair, ConflictingPair)> S, 
         set <Edge, bool (*) (Edge, Edge)> fixedEdges, unsigned int fixSolutionTimeLimit) {
     chrono::high_resolution_clock::time_point tBeginFixSolution =
         chrono::high_resolution_clock::now();
     double primalBoundValue = 0.0;
 
-    for (vector <Edge>::iterator it = (*primalSolution).begin(); it != (*primalSolution).end(); 
-            it++) {
-        for (vector <Edge>::iterator it2 = E.begin(); it2 != E.end(); it2++) {
-            if (areEdgesExtremesEquals((*it), (*it2))) {
-                it->w = it2->w;
-                primalBoundValue += it->w;
-            }
+    bool (*edgeComparatorPointer) (Edge, Edge) = edgeComparator;
+
+    set <Edge, bool (*) (Edge, Edge)> primalSolutionPrime (edgeComparatorPointer);
+
+    for (set <Edge, bool (*) (Edge, Edge)>::iterator it = (*primalSolution).begin(); 
+            it != (*primalSolution).end(); it++) {
+        Edge e = (*it);
+
+        set <Edge, bool (*) (Edge, Edge)>::iterator it2 = E.find(e);
+
+        if (it2 != E.end()) {
+            Edge f = (*it2);
+
+            primalSolutionPrime.insert(f);
+
+            primalBoundValue += f.w;
         }
     }
 
+    (*primalSolution) = set <Edge, bool (*) (Edge, Edge)> (primalSolutionPrime);
+
     Edge edgeToRemove;
-    bool (*edgeComparatorPointer) (Edge, Edge) = edgeComparator;
+
     set <Edge, bool (*) (Edge, Edge)> removedEdges (edgeComparatorPointer);
 
     while (!timeLimitExceeded(tBeginFixSolution, fixSolutionTimeLimit) && 
-            searchEdgeToRemove (&edgeToRemove, n, E, S, fixedEdges, (*primalSolution))) {
+            searchEdgeToRemove(&edgeToRemove, n, E, S, fixedEdges, (*primalSolution))) {
         Edge edgeToInsert;
 
         primalBoundValue -= edgeToRemove.w;
-        removeEdge(primalSolution, edgeToRemove);
+        (*primalSolution).erase(edgeToRemove);
         removedEdges.insert(edgeToRemove);
 
         if (searchEdgeToInsert (&edgeToInsert, n, E, S, (*primalSolution), removedEdges)) {
             primalBoundValue += edgeToInsert.w;
-            (*primalSolution).push_back(edgeToInsert);
+            (*primalSolution).insert(edgeToInsert);
         } else {
             primalBoundValue += edgeToRemove.w;
-            (*primalSolution).push_back(edgeToRemove);
+            (*primalSolution).insert(edgeToRemove);
 
             break;
         }
@@ -577,7 +631,8 @@ void writeOutput (int iteration, chrono::high_resolution_clock::time_point tBegi
     }
 }
 
-double constructiveHeuristic (vector <Edge> * primalSolution, unsigned int n, vector <Edge> E, 
+double constructiveHeuristic (set <Edge, bool (*) (Edge, Edge)> * primalSolution, unsigned int n, 
+        set <Edge, bool (*) (Edge, Edge)> E, 
         set <ConflictingPair, bool (*) (ConflictingPair, ConflictingPair)> S) {
     bool (*edgeComparatorPointer) (Edge, Edge) = edgeComparator;
     set <Edge, bool (*) (Edge, Edge)> conflictingEdges (edgeComparatorPointer);
@@ -595,7 +650,7 @@ double constructiveHeuristic (vector <Edge> * primalSolution, unsigned int n, ve
 
         /* In the graph G we choose an e ∈ E */
         /* which appears in the maximum number of conflict pairs */
-        for (set <Edge>::iterator it = conflictingEdges.begin(); it != conflictingEdges.end();
+        for (set <Edge>::iterator it = conflictingEdges.begin(); it != conflictingEdges.end(); 
                 it++) {
             Edge e = (*it);
             unsigned int conflictsCounter = 0;
@@ -614,12 +669,12 @@ double constructiveHeuristic (vector <Edge> * primalSolution, unsigned int n, ve
         }
 
         /* Delete e from G */
-        removeEdge(&E, maxConflictingEdge);
+        E.erase(maxConflictingEdge);
 
         /* And delete from S all the conflict pairs containing e */
         for (set <ConflictingPair, bool (*) (ConflictingPair, ConflictingPair)>::iterator it = 
                 S.begin(); it != S.end();) {
-            if (areEdgesExtremesEquals(maxConflictingEdge, it->e) ||
+            if (areEdgesExtremesEquals(maxConflictingEdge, it->e) || 
                     areEdgesExtremesEquals(maxConflictingEdge, it->f)) {
                 it = S.erase(it);
             } else {
@@ -639,7 +694,8 @@ double constructiveHeuristic (vector <Edge> * primalSolution, unsigned int n, ve
 
 bool relaxLag1 (double * bestDualBoundValue, int * bestDualBoundIteration, int * totalIterations, 
         double * bestPrimalBoundValue, int * bestPrimalBoundIteration, 
-        vector <Edge> * bestPrimalSolution, unsigned int n, vector <Edge> E, 
+        set <Edge, bool (*) (Edge, Edge)> * bestPrimalSolution, unsigned int n, 
+        set <Edge, bool (*) (Edge, Edge)> E, 
         set <ConflictingPair, bool (*) (ConflictingPair, ConflictingPair)> S, 
         set <Edge, bool (*) (Edge, Edge)> fixedEdges, 
         chrono::high_resolution_clock::time_point tBegin, unsigned int totalTimeLimit, 
@@ -647,10 +703,8 @@ bool relaxLag1 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
     vector <double> u;
     unsigned int iterationsWithoutImprovment;
     double dualBoundValue, primalBoundValue;
-    vector <Edge> dualSolution, primalSolution;
 
-    /* sort the edges of E into nondecreasing order by weight w */
-    sort(E.begin(), E.end(), edgeWeightComparator);
+    set <Edge, bool (*) (Edge, Edge)> dualSolution, primalSolution;
 
     dualBoundValue = kruskal(&dualSolution, n, E);
 
@@ -658,7 +712,7 @@ bool relaxLag1 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
         (*bestDualBoundValue) = dualBoundValue;
     }
 
-    primalSolution = vector <Edge> (dualSolution);
+    primalSolution = set <Edge, bool (*) (Edge, Edge)> (dualSolution);
 
     primalBoundValue = fixSolution(&primalSolution, n, E, S, fixedEdges, fixSolutionTimeLimit);
 
@@ -692,19 +746,23 @@ bool relaxLag1 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
     while (!termination(tBegin, totalTimeLimit, (*bestDualBoundValue), (*bestPrimalBoundValue), 
                 pi, minPi)) {
         double stepSize;
-        vector <Edge> Eu(E);
+        bool (*edgeComparatorPointer) (Edge, Edge) = edgeComparator;
+        set <Edge, bool (*) (Edge, Edge)> Eu(edgeComparatorPointer);
         vector <double> G(S.size(), -1.0);
 
         /* Solving the Lagrangian problem with the current set of multipliers */
-        unsigned int i = 0;
-        for (set <ConflictingPair, bool (*) (ConflictingPair, ConflictingPair)>::iterator it = 
-                S.begin(); it != S.end(); it++, i++) {
-            for (vector <Edge>::iterator it2 = Eu.begin(); it2 != Eu.end(); it2++) {
-                if (areEdgesExtremesEquals((*it2), it->e) || 
-                        areEdgesExtremesEquals((*it2), it->f)) {
-                    it2->w += u[i];
+        for (set <Edge, bool (*) (Edge, Edge)>::iterator it = E.begin(); it != E.end(); it++) {
+            Edge e = (*it);
+
+            unsigned int i = 0;
+            for (set <ConflictingPair, bool (*) (ConflictingPair, ConflictingPair)>::iterator it2 
+                    = S.begin(); it2 != S.end(); it2++, i++) {
+                if (areEdgesExtremesEquals(e, it2->e) || areEdgesExtremesEquals(e, it2->f)) {
+                    e.w += u[i];
                 }
             }
+
+            Eu.insert(e);
         }
 
         dualBoundValue = kruskal(&dualSolution, n, Eu);
@@ -730,15 +788,15 @@ bool relaxLag1 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
         }
 
         /* Defining subgradients for the relaxed constraints, evaluated at the current solution */
-        i = 0;
+        unsigned i = 0;
         for (set <ConflictingPair, bool (*) (ConflictingPair, ConflictingPair)>::iterator it = 
                 S.begin(); it != S.end(); it++, i++) {
-            for (vector <Edge>::iterator it2 = dualSolution.begin(); it2 != dualSolution.end(); 
-                    it2++) {
-                if (areEdgesExtremesEquals((*it2), it->e) || 
-                        areEdgesExtremesEquals((*it2), it->f)) {
-                    G[i] += 1.0;
-                }
+            if (dualSolution.find(it->e) != dualSolution.end()) {
+                G[i] += 1.0;
+            }
+
+            if (dualSolution.find(it->f) != dualSolution.end()) {
+                G[i] += 1.0;
             }
 
             if (fabs(u[i]) < EPSILON && G[i] < 0.0) {
@@ -747,7 +805,7 @@ bool relaxLag1 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
         }
 
         /* Obtaining a feasible primal solution from a (possibly unfeasible) dual solution */
-        primalSolution = vector <Edge> (dualSolution);
+        primalSolution = set <Edge, bool (*) (Edge, Edge)> (dualSolution);
         primalBoundValue = fixSolution(&primalSolution, n, E, S, fixedEdges, 
                 fixSolutionTimeLimit);
 
@@ -787,21 +845,22 @@ bool relaxLag1 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
 
 bool relaxLag2 (double * bestDualBoundValue, int * bestDualBoundIteration, int * totalIterations, 
         double * bestPrimalBoundValue, int * bestPrimalBoundIteration, 
-        vector <Edge> * bestPrimalSolution, unsigned int n, vector <Edge> E, 
+        set <Edge, bool (*) (Edge, Edge)> * bestPrimalSolution, unsigned int n, 
+        set <Edge, bool (*) (Edge, Edge)> E, 
         set <ConflictingPair, bool (*) (ConflictingPair, ConflictingPair)> S, 
         set <Edge, bool (*) (Edge, Edge)> fixedEdges, 
         chrono::high_resolution_clock::time_point tBegin, unsigned int totalTimeLimit, 
         unsigned int fixSolutionTimeLimit, double pi, unsigned int N, double minPi) {
     vector < set <ConflictingPair, bool (*) (ConflictingPair, ConflictingPair)> > Se;
     unsigned int eStarIndex;
+    Edge eStar;
     set <ConflictingPair, bool (*) (ConflictingPair, ConflictingPair)> SminusSeStar (S);
-    vector <Edge> EeStar, EminusEeStar, dualSolution, primalSolution;
+    bool (*edgeComparatorPointer) (Edge, Edge) = edgeComparator;
+    set <Edge, bool (*) (Edge, Edge)> EeStar (edgeComparatorPointer), 
+        EminusEeStar (edgeComparatorPointer), dualSolution, primalSolution;
     vector <double> u;
     unsigned int iterationsWithoutImprovment;
     double dualBoundValue, primalBoundValue;
-
-    /* sort the edges of E into nondecreasing order by weight w */
-    sort(E.begin(), E.end(), edgeWeightComparator);
 
     dualBoundValue = kruskal(&dualSolution, n, E);
 
@@ -809,7 +868,7 @@ bool relaxLag2 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
         (*bestDualBoundValue) = dualBoundValue;
     }
 
-    primalSolution = vector <Edge> (dualSolution);
+    primalSolution = set <Edge, bool (*) (Edge, Edge)> (dualSolution);
     primalBoundValue = fixSolution(&primalSolution, n, E, S, fixedEdges, fixSolutionTimeLimit);
 
     if (isFeasible(n, S, primalSolution) && (*bestPrimalBoundValue) > primalBoundValue) {
@@ -837,21 +896,31 @@ bool relaxLag2 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
     }
 
     /* Denote por Se o conjunto de pares conflitantes de S envolvendo a aresta e */
-    Se = vector < set <ConflictingPair, bool (*) (ConflictingPair, ConflictingPair)> > (E.size());
+    bool (*conflictingPairComparatorPointer) (ConflictingPair, ConflictingPair) = 
+        conflictingPairComparator;
+    Se = vector < set <ConflictingPair, bool (*) (ConflictingPair, ConflictingPair)> > (E.size(), 
+            set <ConflictingPair, bool (*) (ConflictingPair, ConflictingPair)> (
+                conflictingPairComparatorPointer));
 
-    for (unsigned int i = 0; i < E.size(); i++) {
-        for (set <ConflictingPair, bool (*) (ConflictingPair, ConflictingPair)>::iterator it = 
-                S.begin(); it != S.end(); it++) {
-            if (areEdgesExtremesEquals(E[i], it->e) || areEdgesExtremesEquals(E[i], it->f)) {
-                Se[i].insert((*it));
+    unsigned int i = 0;
+    for (set <Edge, bool (*) (Edge, Edge)>::iterator it = E.begin(); it != E.end(); it++, i++) {
+        for (set <ConflictingPair, bool (*) (ConflictingPair, ConflictingPair)>::iterator it2 = 
+                S.begin(); it2 != S.end(); it2++) {
+            ConflictingPair cp = (*it2);
+
+            if (areEdgesExtremesEquals((*it), cp.e) || areEdgesExtremesEquals((*it), cp.f)) {
+                Se[i].insert(cp);
             }
         }
     }
 
     /* Seja ainda e* a aresta de E com menor custo para a qual Se não é vazio */
-    for (eStarIndex = 0; eStarIndex < E.size(); eStarIndex++) {
-        if (Se[eStarIndex].size() > 0) {
-            break;
+    eStarIndex = i = 0;
+    eStar.w = INFINITE;
+    for (set <Edge, bool (*) (Edge, Edge)>::iterator it = E.begin(); it != E.end(); it++, i++) {
+        if (Se[i].size() > 0 && eStar.w > it->w) {
+            eStarIndex = i;
+            eStar = (*it);
         }
     }
 
@@ -860,37 +929,31 @@ bool relaxLag2 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
         SminusSeStar.erase((*it));
     }
 
-    for (vector <Edge>::iterator it = E.begin(); it != E.end(); it++) {
+    for (set <Edge, bool (*) (Edge, Edge)>::iterator it = E.begin(); it != E.end(); it++) {
         Edge e = (*it);
 
-        if (!areEdgesExtremesEquals(e, E[eStarIndex])) {
+        if (!areEdgesExtremesEquals(e, eStar)) {
             ConflictingPair cp;
 
-            if (edgeComparator(e, E[eStarIndex])) {
+            if (edgeComparator(e, eStar)) {
                 cp.e = e;
-                cp.f = E[eStarIndex];
+                cp.f = eStar;
             } else {
-                cp.e = E[eStarIndex];
+                cp.e = eStar;
                 cp.f = e;
             }
 
             if (Se[eStarIndex].find(cp) != Se[eStarIndex].end()) {
-                EeStar.push_back(e);
+                EeStar.insert(e);
             }
         }
     }
 
-    for (vector <Edge>::iterator it = E.begin(); it != E.end(); it++) {
-        bool found = false;
+    for (set <Edge, bool (*) (Edge, Edge)>::iterator it = E.begin(); it != E.end(); it++) {
+        Edge e = (*it);
 
-        for (vector <Edge>::iterator it2 = EeStar.begin(); it2 != EeStar.end() && !found; it2++) {
-            if (areEdgesExtremesEquals((*it), (*it2))) {
-                found = true;
-            }
-        }
-
-        if (!found) {
-            EminusEeStar.push_back((*it));
+        if (EeStar.find(e) == EeStar.end()) {
+            EminusEeStar.insert((*it));
         }
     }
 
@@ -900,19 +963,23 @@ bool relaxLag2 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
     while (!termination(tBegin, totalTimeLimit, (*bestDualBoundValue), (*bestPrimalBoundValue), 
                 pi, minPi)) {
         double stepSize;
-        vector <Edge> Eu(EminusEeStar);
+        set <Edge, bool (*) (Edge, Edge)> Eu(edgeComparatorPointer);
         vector <double> G(SminusSeStar.size(), -1.0);
 
         /* Solving the Lagrangian problem with the current set of multipliers */
-        unsigned int i = 0;
-        for (set <ConflictingPair, bool (*) (ConflictingPair, ConflictingPair)>::iterator it = 
-                SminusSeStar.begin(); it != SminusSeStar.end(); it++, i++) {
-            for (vector <Edge>::iterator it2 = Eu.begin(); it2 != Eu.end(); it2++) {
-                if (areEdgesExtremesEquals((*it2), it->e) || 
-                        areEdgesExtremesEquals((*it2), it->f)) {
-                    it2->w += u[i];
+        for (set <Edge, bool (*) (Edge, Edge)>::iterator it = EminusEeStar.begin(); 
+                it != EminusEeStar.end(); it++) {
+            Edge e = (*it);
+
+            unsigned int i = 0;
+            for (set <ConflictingPair, bool (*) (ConflictingPair, ConflictingPair)>::iterator it2 
+                    = SminusSeStar.begin(); it2 != SminusSeStar.end(); it2++, i++) {
+                if (areEdgesExtremesEquals(e, it2->e) || areEdgesExtremesEquals(e, it2->f)) {
+                    e.w += u[i];
                 }
             }
+
+            Eu.insert(e);
         }
 
         dualBoundValue = kruskal(&dualSolution, n, Eu);
@@ -938,15 +1005,15 @@ bool relaxLag2 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
         }
 
         /* Defining subgradients for the relaxed constraints, evaluated at the current solution */
-        i = 0;
+        unsigned int i = 0;
         for (set <ConflictingPair, bool (*) (ConflictingPair, ConflictingPair)>::iterator it = 
                 SminusSeStar.begin(); it != SminusSeStar.end(); it++, i++) {
-            for (vector <Edge>::iterator it2 = dualSolution.begin(); it2 != dualSolution.end(); 
-                    it2++) {
-                if (areEdgesExtremesEquals((*it2), it->e) || 
-                        areEdgesExtremesEquals((*it2), it->f)) {
-                    G[i] += 1.0;
-                }
+            if (dualSolution.find(it->e) != dualSolution.end()) {
+                G[i] += 1.0;
+            }
+
+            if (dualSolution.find(it->f) != dualSolution.end()) {
+                G[i] += 1.0;
             }
 
             if (fabs(u[i]) < EPSILON && G[i] < 0.0) {
@@ -955,7 +1022,7 @@ bool relaxLag2 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
         }
 
         /* Obtaining a feasible primal solution from a (possibly unfeasible) dual solution */
-        primalSolution = vector <Edge> (dualSolution);
+        primalSolution = set <Edge, bool (*) (Edge, Edge)> (dualSolution);
         primalBoundValue = fixSolution(&primalSolution, n, E, S, fixedEdges, 
                 fixSolutionTimeLimit);
 
@@ -993,9 +1060,9 @@ bool relaxLag2 (double * bestDualBoundValue, int * bestDualBoundIteration, int *
     return true;
 }
 
-bool writeResult (char * resultFilePath, double bestDualBoundValue, int bestDualBoundIteration,
-        int totalIterations, double bestPrimalBoundValue, int bestPrimalBoundIteration,
-        vector <Edge> bestPrimalSolution) {
+bool writeResult (char * resultFilePath, double bestDualBoundValue, int bestDualBoundIteration, 
+        int totalIterations, double bestPrimalBoundValue, int bestPrimalBoundIteration, 
+        set <Edge, bool (*) (Edge, Edge)> bestPrimalSolution) {
     ofstream resultFileStream(resultFilePath, ofstream::out);
 
     if (!resultFileStream.is_open()) {
@@ -1026,20 +1093,21 @@ bool writeResult (char * resultFilePath, double bestDualBoundValue, int bestDual
     /* representando a árvore geradora correspondente ao melhor limitante primal encontrado, */
     /* cada linha identificando uma aresta e = (u, v) presente na árvore, */
     /* sendo 0 ≤ u, v ≤ n − 1, no seguinte formato: u v */
-    for (vector <Edge>::iterator it = bestPrimalSolution.begin(); it != bestPrimalSolution.end();
-            it++) {
+    for (set <Edge, bool (*) (Edge, Edge)>::iterator it = bestPrimalSolution.begin(); 
+            it != bestPrimalSolution.end(); it++) {
         Edge e = *it;
+
         resultFileStream << e.u << ' ' << e.v << endl;
     }
 
     return true;
 }
 
-vector < list < pair <unsigned int, double> > > toAdjacencyList (unsigned int n,
-        vector <Edge> E) {
+vector < list < pair <unsigned int, double> > > toAdjacencyList (unsigned int n, 
+        set <Edge, bool (*) (Edge, Edge)> E) {
     vector < list < pair <unsigned int, double> > > adj (n);
 
-    for (vector <Edge>::iterator it = E.begin(); it != E.end(); it++) {
+    for (set <Edge, bool (*) (Edge, Edge)>::iterator it = E.begin(); it != E.end(); it++) {
         Edge e = (*it);
         adj[e.u].push_back(make_pair(e.v, e.w));
         adj[e.v].push_back(make_pair(e.u, e.w));
@@ -1152,8 +1220,8 @@ bool areEdgesConflicting (set <ConflictingPair, bool (*) (ConflictingPair, Confl
     return false;
 }
 
-void preProcessingPhase1 (unsigned int n, vector <Edge> * E, set <ConflictingPair, 
-        bool (*) (ConflictingPair, ConflictingPair)> * S, 
+void preProcessingPhase1 (unsigned int n, set <Edge, bool (*) (Edge, Edge)> * E, 
+        set <ConflictingPair, bool (*) (ConflictingPair, ConflictingPair)> * S, 
         set <Edge, bool (*) (Edge, Edge)> * fixedEdges, 
         chrono::high_resolution_clock::time_point tBeginPreProcessing, 
         unsigned int preProcessingTimeLimit) {
@@ -1183,14 +1251,14 @@ void preProcessingPhase1 (unsigned int n, vector <Edge> * E, set <ConflictingPai
                     = (*S).begin(); it2 != (*S).end();) {
                 if (areEdgesExtremesEquals(e, it2->e)) {
                     /* Remove the conflicing edge from the graph */
-                    removeEdge(E, it2->f);
+                    (*E).erase(it2->f);
                     removeEdgeFromAdjacencyList(adj, it2->f);
 
                     /* Remove the conflicting pair */
                     it2 = (*S).erase(it2);
                 } else if (areEdgesExtremesEquals(e, it2->f)) {
                     /* Remove the conflicing edge from the graph */
-                    removeEdge(E, it2->e);
+                    (*E).erase(it2->e);
                     removeEdgeFromAdjacencyList(adj, it2->e);
 
                     /* Remove the conflicting pair */
@@ -1207,7 +1275,7 @@ void preProcessingPhase1 (unsigned int n, vector <Edge> * E, set <ConflictingPai
     }
 }
 
-bool preProcessingPhase2 (unsigned int n, vector <Edge> * E, 
+bool preProcessingPhase2 (unsigned int n, set <Edge, bool (*) (Edge, Edge)> * E, 
         set <ConflictingPair, bool (*) (ConflictingPair, ConflictingPair)> * S, 
         set <Edge, bool (*) (Edge, Edge)> * fixedEdges, 
         chrono::high_resolution_clock::time_point tBeginPreProcessing, 
@@ -1215,14 +1283,14 @@ bool preProcessingPhase2 (unsigned int n, vector <Edge> * E,
     bool result = false;
 
     /* For each edge e that is conflicting with some edge */
-    for (vector <Edge>::iterator it = (*E).begin(); 
+    for (set <Edge, bool (*) (Edge, Edge)>::iterator it = (*E).begin(); 
             !timeLimitExceeded(tBeginPreProcessing, preProcessingTimeLimit) && 
             it != (*E).end();) {
         Edge e = (*it);
 
         if (isConflictingWithSomeEdge((*S), e)) {
             /* Create a copy of the graph */
-            vector <Edge> Eprime ((*E));
+            set <Edge, bool (*) (Edge, Edge)> Eprime ((*E));
 
             /* Create a copy of the conflicting pairs */
             set <ConflictingPair, bool (*) (ConflictingPair, ConflictingPair)> Sprime ((*S));
@@ -1236,11 +1304,11 @@ bool preProcessingPhase2 (unsigned int n, vector <Edge> * E,
             for (set <ConflictingPair, bool (*) (ConflictingPair, ConflictingPair)>::iterator it2 
                     = Sprime.begin(); it2 != Sprime.end();) {
                 if (areEdgesExtremesEquals(e, it2->e)) {
-                    removeEdge(&Eprime, it2->f);
+                    Eprime.erase(it2->f);
 
                     it2 = Sprime.erase(it2);
                 } else if (areEdgesExtremesEquals(e, it2->f)) {
-                    removeEdge(&Eprime, it2->e);
+                    Eprime.erase(it2->e);
 
                     it2 = Sprime.erase(it2);
                 } else {
@@ -1281,7 +1349,7 @@ bool preProcessingPhase2 (unsigned int n, vector <Edge> * E,
     return result;
 }
 
-bool preProcessingPhase3 (unsigned int n, vector <Edge> * E, 
+bool preProcessingPhase3 (unsigned int n, set <Edge, bool (*) (Edge, Edge)> * E, 
         set <ConflictingPair, bool (*) (ConflictingPair, ConflictingPair)> * S, 
         set <Edge, bool (*) (Edge, Edge)> * fixedEdges, 
         chrono::high_resolution_clock::time_point tBeginPreProcessing, 
@@ -1290,22 +1358,23 @@ bool preProcessingPhase3 (unsigned int n, vector <Edge> * E,
 
     /* For each pair of edges (e, f) */
     /* that conflict with some edge but do not conflict with each other */
-    for (vector <Edge>::iterator it = (*E).begin(); 
+    for (set <Edge, bool (*) (Edge, Edge)>::iterator it = (*E).begin(); 
             !timeLimitExceeded(tBeginPreProcessing, preProcessingTimeLimit) && it != (*E).end(); 
             it++) {
         Edge e = (*it);
 
         if (isConflictingWithSomeEdge((*S), e)) {
-            for (vector <Edge>::iterator it2 = it + 1; it2 != (*E).end(); it2++) {
+            for (set <Edge, bool (*) (Edge, Edge)>::iterator it2 = next(it); it2 != (*E).end(); 
+                    it2++) {
                 Edge f = (*it2);
 
                 if (isConflictingWithSomeEdge((*S), f) && !areEdgesConflicting((*S), e, f)) {
                     /* Create a copy of the graph */
-                    vector <Edge> Eprime ((*E));
+                    set <Edge, bool (*) (Edge, Edge)> Eprime ((*E));
 
                     /* Create a copy of the conflicting pairs */
-                    set <ConflictingPair, bool (*) (ConflictingPair, ConflictingPair)> Sprime 
-                        ((*S));
+                    set <ConflictingPair, bool (*) (ConflictingPair, ConflictingPair)> Sprime (
+                            (*S));
 
                     /* Create a copy of the fixed edges */
                     set <Edge, bool (*) (Edge, Edge)> fixedEdgesPrime ((*fixedEdges));
@@ -1315,14 +1384,15 @@ bool preProcessingPhase3 (unsigned int n, vector <Edge> * E,
                     fixedEdgesPrime.insert(f);
 
                     /* Removes from the copied instance the edges conflicting with e ou with f */
-                    for (set <ConflictingPair, bool (*) (ConflictingPair, ConflictingPair)>::iterator it3 = Sprime.begin(); it3 != Sprime.end();) {
+                    for (set <ConflictingPair, bool (*) (ConflictingPair, ConflictingPair)>::
+                            iterator it3 = Sprime.begin(); it3 != Sprime.end();) {
                         if (areEdgesExtremesEquals(e, it3->e) ||
                                 areEdgesExtremesEquals(f, it3->e)) {
-                            removeEdge(&Eprime, it3->e);
+                            Eprime.erase(it3->e);
                             it3 = Sprime.erase(it3);
                         } else if (areEdgesExtremesEquals(e, it3->f) ||
                                 areEdgesExtremesEquals(f, it3->f)) {
-                            removeEdge(&Eprime, it3->f);
+                            Eprime.erase(it3->f);
                             it3 = Sprime.erase(it3);
                         } else {
                             it3++;
@@ -1360,7 +1430,7 @@ bool preProcessingPhase3 (unsigned int n, vector <Edge> * E,
     return result;
 }
 
-void preProcessing (unsigned int n, vector <Edge> * E, 
+void preProcessing (unsigned int n, set <Edge, bool (*) (Edge, Edge)> * E, 
         set <ConflictingPair, bool (*) (ConflictingPair, ConflictingPair)> * S, 
         set <Edge, bool (*) (Edge, Edge)> * fixedEdges, unsigned int preProcessingTimeLimit) {
     chrono::high_resolution_clock::time_point tBeginPreProcessing = 
@@ -1404,7 +1474,7 @@ int main (int argc, char * argv[]) {
     }
 
     unsigned int n;
-    vector <Edge> E;
+    set <Edge, bool (*) (Edge, Edge)> E;
     set <ConflictingPair, bool (*) (ConflictingPair, ConflictingPair)> S;
 
     if (!readInput(&n, &E, &S, argv[2])) {
@@ -1413,7 +1483,7 @@ int main (int argc, char * argv[]) {
 
     double bestDualBoundValue, bestPrimalBoundValue;
     int bestDualBoundIteration, totalIterations, bestPrimalBoundIteration;
-    vector <Edge> bestPrimalSolution;
+    set <Edge, bool (*) (Edge, Edge)> bestPrimalSolution;
 
     bestDualBoundValue = -INFINITE;
     bestDualBoundIteration = -1;
@@ -1448,7 +1518,7 @@ int main (int argc, char * argv[]) {
         }
     }
 
-    if (!writeResult(argv[3], bestDualBoundValue, bestDualBoundIteration, totalIterations,
+    if (!writeResult(argv[3], bestDualBoundValue, bestDualBoundIteration, totalIterations, 
                 bestPrimalBoundValue, bestPrimalBoundIteration, bestPrimalSolution)) {
         cerr << "Error while writing output!" << endl;
         return 1;
