@@ -828,28 +828,36 @@ double fixSolution (set <Edge, bool (*) (Edge, Edge)> * primalSolution, unsigned
             !timeLimitExceeded(tBeginFixSolution, fixSolutionTimeLimit); it++) {
         Edge e = (*it);
 
-        /* If e connected two distinct connected components of the primal solution */
-        if (!sameComponent(components, e.u, e.v)) {
+        /* Check if e conflicts if some edge in the primal solution */
+        bool conflicts = false;
+        for (set <Edge>::iterator it2 = (*primalSolution).begin(); 
+                it2 != (*primalSolution).end() && !conflicts; it2++) {
+            Edge f = (*it2);
+
+            ConflictingPair cp;
+
+            if (edgeComparator(e, f)) {
+                cp.e = e;
+                cp.f = f;
+            } else {
+                cp.e = f;
+                cp.f = e;
+            }
+
+            if (S.find(cp) != S.end()) {
+                conflicts = true;
+            }
+        }
+
+        /* If e does not conflict with the primal solution and */
+        /* connects two distinct connected components of the primal solution */
+        if (!conflicts && !sameComponent(components, e.u, e.v)) {
             /* Insert e into the primal solution */
             (*primalSolution).insert(e);
             primalBoundValue += e.w;
 
             /* Connect the connected components */
             SETSunion(&components, e.u, e.v);
-
-            /* Remove the edges that conflict with e from the edges to insert */
-            for (set <ConflictingPair>::iterator it2 = S.begin(); it2 != S.end() && 
-                    !timeLimitExceeded(tBeginFixSolution, fixSolutionTimeLimit); it2++) {
-                ConflictingPair cp = (*it2);
-
-                if (areEdgesExtremesEquals(e, cp.e)) {
-                    removeEdge(&edgesToInsert, cp.f);
-                }
-
-                if (areEdgesExtremesEquals(e, cp.f)) {
-                    removeEdge(&edgesToInsert, cp.e);
-                }
-            }
         }
     }
 
