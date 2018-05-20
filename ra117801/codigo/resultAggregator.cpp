@@ -3,6 +3,10 @@
 #include <iomanip>
 #include <iostream>
 
+#ifndef INFINITE
+#define INFINITE 15 << 25
+#endif
+
 using namespace std;
 
 bool readResult (char * resultFilePath, double * bestDualBoundValue, 
@@ -38,6 +42,7 @@ int main (int argc, char * argv[]) {
     }
 
     double meanGap = 0.0;
+    unsigned int counter = 0;
 
     for (int i = 1; i < argc; i++) {
         double bestDualBoundValue, bestPrimalBoundValue, gap;
@@ -47,16 +52,29 @@ int main (int argc, char * argv[]) {
             return 1;
         }
 
-        gap = (bestPrimalBoundValue - ceil(bestDualBoundValue)) / ceil(bestDualBoundValue);
-        meanGap += gap;
+        if (ceil(bestDualBoundValue) <= -INFINITE) {
+            gap = nan("");
+        } else if (bestPrimalBoundValue >= INFINITE) {
+            gap = INFINITE;
+        } else {
+            gap = (bestPrimalBoundValue - ceil(bestDualBoundValue)) / ceil(bestDualBoundValue);
+            meanGap += gap;
+            counter++;
+        }
 
         cout << argv[i] << " ";
         cout << ((int) bestPrimalBoundValue) << " ";
         cout << fixed << setprecision(6) << bestDualBoundValue << " ";
-        cout << fixed << setprecision(6) << gap << endl;
+        if (isnan(gap)) {
+            cout << "NaN" << endl;
+        } else if (gap >= INFINITE) {
+            cout << "INFINITE" << endl;
+        } else {
+            cout << fixed << setprecision(6) << gap << endl;
+        }
     }
 
-    meanGap /= ((double) (argc - 1.0));
+    meanGap /= ((double) counter);
 
     cout << fixed << setprecision(6) << meanGap << endl;
 
