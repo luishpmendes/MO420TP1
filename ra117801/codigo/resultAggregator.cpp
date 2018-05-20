@@ -42,7 +42,7 @@ int main (int argc, char * argv[]) {
     }
 
     double meanGap = 0.0;
-    unsigned int counter = 0;
+    unsigned int validGapCounter = 0;
 
     for (int i = 1; i < argc; i++) {
         double bestDualBoundValue, bestPrimalBoundValue, gap;
@@ -59,7 +59,7 @@ int main (int argc, char * argv[]) {
         } else {
             gap = (bestPrimalBoundValue - ceil(bestDualBoundValue)) / ceil(bestDualBoundValue);
             meanGap += gap;
-            counter++;
+            validGapCounter++;
         }
 
         cout << argv[i] << " ";
@@ -74,8 +74,9 @@ int main (int argc, char * argv[]) {
         }
     }
 
-    meanGap /= ((double) counter);
+    meanGap /= ((double) validGapCounter);
 
+    cout << validGapCounter << endl;
     cout << fixed << setprecision(6) << meanGap << endl;
 
     return 0;
