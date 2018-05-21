@@ -42,7 +42,7 @@ int main (int argc, char * argv[]) {
     }
 
     double meanGap = 0.0;
-    unsigned int validGapCounter = 0;
+    unsigned int validGapCounter = 0, optimumSolutionCounter = 0;
 
     for (int i = 1; i < argc; i++) {
         double bestDualBoundValue, bestPrimalBoundValue, gap;
@@ -52,14 +52,18 @@ int main (int argc, char * argv[]) {
             return 1;
         }
 
-        if (ceil(bestDualBoundValue) <= -INFINITE) {
+        if (bestPrimalBoundValue >= INFINITE) {
             gap = nan("");
-        } else if (bestPrimalBoundValue >= INFINITE) {
+        } else if (ceil(bestDualBoundValue) <= -INFINITE) {
             gap = INFINITE;
         } else {
-            gap = (bestPrimalBoundValue - ceil(bestDualBoundValue)) / ceil(bestDualBoundValue);
+            gap = (bestPrimalBoundValue - ceil(bestDualBoundValue)) / bestPrimalBoundValue;
             meanGap += gap;
             validGapCounter++;
+
+            if (bestPrimalBoundValue - bestDualBoundValue < 1.0) {
+                optimumSolutionCounter++;
+            }
         }
 
         cout << argv[i] << " ";
@@ -77,6 +81,7 @@ int main (int argc, char * argv[]) {
     meanGap /= ((double) validGapCounter);
 
     cout << validGapCounter << endl;
+    cout << optimumSolutionCounter << endl;
     cout << fixed << setprecision(6) << meanGap << endl;
 
     return 0;
